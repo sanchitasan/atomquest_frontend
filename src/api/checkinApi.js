@@ -1,6 +1,8 @@
 import axios from "axios"
 
-const BASE_URL = "http://127.0.0.1:8000"
+import { getApiBaseUrl } from "./config"
+
+const BASE_URL = getApiBaseUrl()
 
 export const createCheckIn = async (checkinData) => {
 

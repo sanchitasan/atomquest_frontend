@@ -1,6 +1,8 @@
 import axios from "axios"
 
-const BASE_URL = "http://127.0.0.1:8000"
+import { getApiBaseUrl } from "./config"
+
+const BASE_URL = getApiBaseUrl()
 
 const getAuthHeaders = () => ({
     headers: {
@@ -110,6 +112,31 @@ export const approveGoal = async (goalId) => {
         `${BASE_URL}/goals/${goalId}/approve`,
         {},
         getAuthHeaders()
+    )
+
+    return response.data
+}
+export const createSharedGoal = async (goalData) => {
+
+    const response = await axios.post(
+        `${BASE_URL}/shared-goals`,
+        goalData,
+        getAuthHeaders()
+    )
+
+    return response.data
+}
+
+export const getEmployees = async () => {
+
+    const token = localStorage.getItem("token")
+    const response = await axios.get(
+        `${BASE_URL}/employees`,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        }
     )
 
     return response.data

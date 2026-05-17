@@ -1,30 +1,171 @@
-import { useEffect, useState } from "react"
-
+import { useEffect, useMemo, useRef, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import MainLayout from "../layouts/MainLayout"
-
 import {
+    approveGoal,
     createGoal,
-    getPendingGoals,
+    editGoal,
     getEmployeeGoals,
     getGoals,
-    approveGoal,
-    rejectGoal,
-    submitGoals,
-    editGoal,
-    resubmitGoal,
+    getPendingGoals,
     managerBulkUpdateGoals,
+    rejectGoal,
+    resubmitGoal,
+    submitGoals,
 } from "../api/goalApi"
+import {
+    CheckCircle2,
+    Clock3,
+    Edit3,
+    Filter,
+    Layers3,
+    Loader2,
+    Plus,
+    Send,
+    Target,
+    Users,
+    X,
+    XCircle,
+} from "lucide-react"
+
+function toast(message, color = "#22c55e") {
+    const el = document.createElement("div")
+    el.style.cssText = `position:fixed;top:24px;right:24px;z-index:9999;padding:14px 22px;border-radius:16px;background:${color};color:#fff;font-weight:600;font-size:14px;box-shadow:0 20px 60px rgba(2,6,23,.45);transform:translateY(-10px);opacity:0;transition:all .25s ease`
+    el.textContent = message
+    document.body.appendChild(el)
+    requestAnimationFrame(() => {
+        el.style.transform = "translateY(0)"
+        el.style.opacity = "1"
+    })
+    setTimeout(() => {
+        el.style.opacity = "0"
+        el.style.transform = "translateY(-10px)"
+        setTimeout(() => el.remove(), 250)
+    }, 2600)
+}
+
+const filters = [
+    { id: "all", label: "All Goals" },
+    { id: "pending", label: "Pending" },
+    { id: "approved", label: "Approved" },
+    { id: "draft", label: "Drafts" },
+    { id: "rejected", label: "Rejected" },
+]
+
+const metricConfig = {
+    total: {
+        title: "Total Goals",
+        icon: Layers3,
+        accent: "#60a5fa",
+        note: "All visible goal records in scope.",
+    },
+    approved: {
+        title: "Approved",
+        icon: CheckCircle2,
+        accent: "#34d399",
+        note: "Goals cleared for execution.",
+    },
+    pending: {
+        title: "Pending Review",
+        icon: Clock3,
+        accent: "#fbbf24",
+        note: "Waiting on approval or submission flow.",
+    },
+    rejected: {
+        title: "Needs Rework",
+        icon: XCircle,
+        accent: "#fb7185",
+        note: "Returned for revision before approval.",
+    },
+}
+
+const inputClasses =
+    "w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
+
+function statusStyles(status) {
+    const normalized = status?.toLowerCase()
+
+    if (normalized === "approved") {
+        return {
+            label: "Approved",
+            container: "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+            dot: "bg-emerald-300",
+        }
+    }
+
+    if (normalized === "rejected") {
+        return {
+            label: "Rejected",
+            container: "border-rose-400/20 bg-rose-400/10 text-rose-200",
+            dot: "bg-rose-300",
+        }
+    }
+
+    if (normalized === "pending" || normalized === "submitted") {
+        return {
+            label: "Pending",
+            container: "border-amber-400/20 bg-amber-400/10 text-amber-200",
+            dot: "bg-amber-300",
+        }
+    }
+
+    return {
+        label: "Draft",
+        container: "border-slate-400/20 bg-slate-400/10 text-slate-300",
+        dot: "bg-slate-400",
+    }
+}
+
+function Field({ label, children, full = false }) {
+    return (
+        <label className={full ? "lg:col-span-2" : ""}>
+            <span className="mb-2 block text-xs font-medium uppercase tracking-[0.24em] text-slate-500">{label}</span>
+            {children}
+        </label>
+    )
+}
+
+function MetricCard({ item, value, delay }) {
+    const Icon = item.icon
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay }}
+            className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-[0_24px_80px_rgba(2,6,23,0.45)] backdrop-blur-xl"
+        >
+            <div
+                className="absolute inset-x-0 top-0 h-px"
+                style={{ background: `linear-gradient(90deg, transparent, ${item.accent}, transparent)` }}
+            />
+            <div className="mb-4 flex items-start justify-between">
+                <div className="rounded-2xl border border-white/10 p-3" style={{ backgroundColor: `${item.accent}1a` }}>
+                    <Icon size={18} style={{ color: item.accent }} />
+                </div>
+                <span className="rounded-full border border-white/10 bg-slate-950/50 px-2.5 py-1 text-[11px] uppercase tracking-[0.24em] text-slate-400">
+                    Live
+                </span>
+            </div>
+            <p className="text-sm text-slate-400">{item.title}</p>
+            <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+            <p className="mt-3 text-sm text-slate-500">{item.note}</p>
+        </motion.div>
+    )
+}
 
 function Goals() {
+    const role = localStorage.getItem("role") || "employee"
+    const submitLockRef = useRef(false)
 
     const [goals, setGoals] = useState([])
-    const role = localStorage.getItem("role")
+    const [loading, setLoading] = useState(true)
+    const [submitting, setSubmitting] = useState(false)
+    const [activeFilter, setActiveFilter] = useState("all")
+    const [showCreateForm, setShowCreateForm] = useState(false)
     const [editingGoalId, setEditingGoalId] = useState(null)
     const [managerEditMode, setManagerEditMode] = useState(false)
-
-
     const [formData, setFormData] = useState({
-
         title: "",
         description: "",
         thrust_area: "",
@@ -32,613 +173,729 @@ function Goals() {
         target_value: "",
         weightage: "",
         manager_email: "",
-
-
-
     })
 
-    const fetchGoals = async () => {
+    useEffect(() => {
+        fetchGoals()
+    }, [])
 
+    const fetchGoals = async ({ silent = false } = {}) => {
         try {
-
-            const role = localStorage.getItem("role")
-
+            if (!silent) {
+                setLoading(true)
+            }
             let data = []
 
-            if (role === "employee") {
-
-                data = await getEmployeeGoals()
-
-            } else if (role === "manager") {
-
-                data = await getPendingGoals()
-
-            } else if (role === "admin") {
-
-                data = await getGoals()
-            }
+            if (role === "employee") data = await getEmployeeGoals()
+            else if (role === "manager") data = await getPendingGoals()
+            else if (role === "admin") data = await getGoals()
 
             setGoals(data)
-
         } catch (error) {
-
             console.log(error)
+        } finally {
+            if (!silent) {
+                setLoading(false)
+            }
         }
     }
-    useEffect(() => {
 
-        fetchGoals()
+    const resetForm = () => {
+        setFormData({
+            title: "",
+            description: "",
+            thrust_area: "",
+            uom: "",
+            target_value: "",
+            weightage: "",
+            manager_email: "",
+        })
+        setEditingGoalId(null)
+        setShowCreateForm(false)
+    }
 
-    }, [])
+    const closeManagerEdit = () => {
+        setManagerEditMode(false)
+        setEditingGoalId(null)
+        setFormData((prev) => ({
+            ...prev,
+            target_value: "",
+            weightage: "",
+        }))
+    }
+
+    const handleChange = (event) => {
+        setFormData((prev) => ({ ...prev, [event.target.name]: event.target.value }))
+    }
+
     const handleEdit = (goal) => {
-
         setEditingGoalId(goal.id)
-
+        setShowCreateForm(true)
         setFormData({
-
-            title: goal.title,
-            description: goal.description,
-            thrust_area: goal.thrust_area,
-            uom: goal.uom,
-            target_value: goal.target_value,
-            weightage: goal.weightage,
-            manager_email: goal.manager_email,
+            title: goal.title || "",
+            description: goal.description || "",
+            thrust_area: goal.thrust_area || "",
+            uom: goal.uom || "",
+            target_value: goal.target_value ?? "",
+            weightage: goal.weightage ?? "",
+            manager_email: goal.manager_email || "",
         })
     }
+
     const handleManagerEdit = (goal) => {
-
         setManagerEditMode(true)
-
         setEditingGoalId(goal.id)
-
-        setFormData({
-
-            target_value: goal.target_value,
-            weightage: goal.weightage,
-        })
+        setFormData((prev) => ({
+            ...prev,
+            target_value: goal.target_value ?? "",
+            weightage: goal.weightage ?? "",
+        }))
     }
-    const handleManagerUpdate = async (e) => {
 
-        e.preventDefault()
+    const handleSubmit = async (event) => {
+        event.preventDefault()
+        setSubmitting(true)
 
         try {
-
-            await managerBulkUpdateGoals({
-
-                employee_id: goals.find(
-                    g => g.id === editingGoalId
-                )?.employee_id,
-
-                goals: goals.map(g => {
-
-                    if (g.id === editingGoalId) {
-
-                        return {
-                            goal_id: g.id,
-                            target_value: Number(formData.target_value),
-                            weightage: Number(formData.weightage)
-                        }
-                    }
-
-                    return {
-                        goal_id: g.id,
-                        target_value: g.target_value,
-                        weightage: g.weightage
-                    }
-                })
-            })
-
-            alert("Goal Updated Successfully")
-
-            setManagerEditMode(false)
-
-            setEditingGoalId(null)
-
-            fetchGoals()
-
-        } catch (error) {
-
-            console.log(error)
-
-            alert(
-                error.response?.data?.detail ||
-                "Manager Update Failed"
-            )
-        }
-    }
-    const handleGoalSubmission = async () => {
-
-        try {
-
-            await submitGoals()
-
-            alert("Goals Submitted Successfully")
-
-            fetchGoals()
-
-        } catch (error) {
-
-            console.log(error)
-
-            alert(
-                error.response?.data?.detail ||
-                "Goal Submission Failed"
-            )
-        }
-    }
-    const handleResubmit = async (goalId) => {
-
-        try {
-
-            await resubmitGoal(goalId)
-
-            alert("Goal Resubmitted Successfully")
-
-            fetchGoals()
-
-        } catch (error) {
-
-            console.log(error)
-
-            alert(
-                error.response?.data?.detail ||
-                "Resubmission Failed"
-            )
-        }
-    }
-    const handleApprove = async (goalId) => {
-
-        try {
-
-            await approveGoal(goalId)
-
-            alert("Goal Approved")
-
-            fetchGoals()
-
-        } catch (error) {
-
-            console.log(error)
-
-            alert("Approval Failed")
-        }
-    }
-    const handleReject = async (goalId) => {
-
-        try {
-
-            await rejectGoal(goalId)
-
-            alert("Goal Rejected")
-
-            fetchGoals()
-
-        } catch (error) {
-
-            console.log(error)
-
-            alert("Rejection Failed")
-        }
-    }
-    const handleChange = (e) => {
-
-        setFormData({
-
-            ...formData,
-
-            [e.target.name]: e.target.value
-        })
-    }
-    const handleSubmit = async (e) => {
-
-        e.preventDefault()
-
-        try {
-
-            if (editingGoalId) {
-
-                await editGoal(editingGoalId, {
-
-                    ...formData,
-
-                    target_value: Number(formData.target_value),
-
-                    weightage: Number(formData.weightage),
-                })
-
-                alert("Goal Updated Successfully")
-
-                setEditingGoalId(null)
-
-            } else {
-
-                await createGoal({
-
-                    ...formData,
-
-                    target_value: Number(formData.target_value),
-
-                    weightage: Number(formData.weightage),
-                })
-
-                alert("Goal Created Successfully")
+            const payload = {
+                ...formData,
+                target_value: Number(formData.target_value),
+                weightage: Number(formData.weightage),
             }
 
-            alert("Goal Created Successfully")
+            if (editingGoalId) {
+                await editGoal(editingGoalId, payload)
+                toast("Goal updated")
+            } else {
+                await createGoal(payload)
+                toast("Goal created")
+            }
 
-            setFormData({
-
-                title: "",
-                description: "",
-                thrust_area: "",
-                uom: "",
-                target_value: "",
-                weightage: "",
-                manager_email: "",
-
-            })
-
+            resetForm()
             fetchGoals()
-
         } catch (error) {
-
-            console.log(error)
-
-            alert(
-                error.response?.data?.detail ||
-                "Goal Creation Failed"
-            )
+            toast(error.response?.data?.detail || "Request failed", "#ef4444")
+        } finally {
+            setSubmitting(false)
         }
     }
 
+    const handleManagerUpdate = async (event) => {
+        event.preventDefault()
+        setSubmitting(true)
+
+        try {
+            const targetGoal = goals.find((goal) => goal.id === editingGoalId)
+
+            await managerBulkUpdateGoals({
+                employee_id: targetGoal?.employee_id,
+                goals: goals.map((goal) =>
+                    goal.id === editingGoalId
+                        ? {
+                              goal_id: goal.id,
+                              target_value: Number(formData.target_value),
+                              weightage: Number(formData.weightage),
+                          }
+                        : {
+                              goal_id: goal.id,
+                              target_value: goal.target_value,
+                              weightage: goal.weightage,
+                          }
+                ),
+            })
+
+            toast("Goal updated")
+            closeManagerEdit()
+            fetchGoals()
+        } catch (error) {
+            toast(error.response?.data?.detail || "Update failed", "#ef4444")
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const handleGoalSubmission = async () => {
+        if (submitLockRef.current || submitting) {
+            return
+        }
+
+        submitLockRef.current = true
+        setSubmitting(true)
+
+        try {
+            await submitGoals()
+
+            setGoals((currentGoals) =>
+                currentGoals.map((goal) =>
+                    goal.status === "draft"
+                        ? {
+                              ...goal,
+                              status: "submitted",
+                          }
+                        : goal
+                )
+            )
+
+            try {
+                await fetchGoals({ silent: true })
+            } catch (refreshError) {
+                console.log(refreshError)
+            }
+
+            toast("Goals submitted")
+        } catch (error) {
+            toast(error.response?.data?.detail || "Submission failed", "#ef4444")
+        } finally {
+            setSubmitting(false)
+            submitLockRef.current = false
+        }
+    }
+
+    const handleResubmit = async (goalId) => {
+        setSubmitting(true)
+        try {
+            await resubmitGoal(goalId)
+            toast("Goal resubmitted")
+            fetchGoals()
+        } catch (error) {
+            toast(error.response?.data?.detail || "Resubmit failed", "#ef4444")
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const handleApprove = async (goalId) => {
+        setSubmitting(true)
+        try {
+            await approveGoal(goalId)
+            toast("Goal approved")
+            fetchGoals()
+        } catch (error) {
+            toast("Approval failed", "#ef4444")
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const handleReject = async (goalId) => {
+        setSubmitting(true)
+        try {
+            await rejectGoal(goalId)
+            toast("Goal rejected", "#f59e0b")
+            fetchGoals()
+        } catch (error) {
+            toast("Rejection failed", "#ef4444")
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const stats = useMemo(() => {
+        const approved = goals.filter((goal) => goal.status === "approved").length
+        const pending = goals.filter((goal) => ["pending", "submitted"].includes(goal.status)).length
+        const rejected = goals.filter((goal) => goal.status === "rejected").length
+        const draft = goals.filter((goal) => goal.status === "draft").length
+
+        return {
+            total: goals.length,
+            approved,
+            pending,
+            rejected,
+            draft,
+        }
+    }, [goals])
+
+    const filteredGoals = useMemo(() => {
+        if (activeFilter === "all") return goals
+        if (activeFilter === "pending") return goals.filter((goal) => ["pending", "submitted"].includes(goal.status))
+        return goals.filter((goal) => goal.status === activeFilter)
+    }, [activeFilter, goals])
+
     return (
-
         <MainLayout>
-
-            <h1 className="text-4xl font-bold mb-8">
-                Goals Management
-            </h1>
-
-            {role === "employee" && (
-
-                <form
-                    onSubmit={handleSubmit}
-                    className="bg-white p-6 rounded-xl shadow mb-10"
-                >
-
-                <div className="grid grid-cols-2 gap-4">
-
-                    <input
-                        type="text"
-                        name="title"
-                        placeholder="Goal Title"
-                        className="border p-3 rounded"
-                        value={formData.title}
-                        onChange={handleChange}
-                    />
-
-                    <input
-                        type="text"
-                        name="description"
-                        placeholder="Description"
-                        className="border p-3 rounded"
-                        value={formData.description}
-                        onChange={handleChange}
-                    />
-
-                    <input
-                        type="text"
-                        name="thrust_area"
-                        placeholder="Thrust Area"
-                        className="border p-3 rounded"
-                        value={formData.thrust_area}
-                        onChange={handleChange}
-                    />
-
-                    <input
-                        type="text"
-                        name="uom"
-                        placeholder="UOM"
-                        className="border p-3 rounded"
-                        value={formData.uom}
-                        onChange={handleChange}
-                    />
-
-                    <input
-                        type="number"
-                        name="target_value"
-                        placeholder="Target Value"
-                        className="border p-3 rounded"
-                        value={formData.target_value}
-                        onChange={handleChange}
-                    />
-
-                    <input
-                        type="number"
-                        name="weightage"
-                        placeholder="Weightage"
-                        className="border p-3 rounded"
-                        value={formData.weightage}
-                        onChange={handleChange}
-                    />
-
-                    <input
-                        type="email"
-                        name="manager_email"
-                        placeholder="Manager Email"
-                        className="border p-3 rounded"
-                        value={formData.manager_email}
-                        onChange={handleChange}
-                    />
-                    {role === "manager" && managerEditMode && (
-
-                        <form
-                            onSubmit={handleManagerUpdate}
-                            className="bg-white p-6 rounded-xl shadow mb-10"
-                        >
-
-                            <div className="grid grid-cols-2 gap-4">
-
-                                <input
-                                    type="number"
-                                    name="target_value"
-                                    placeholder="Target Value"
-                                    className="border p-3 rounded"
-                                    value={formData.target_value}
-                                    onChange={handleChange}
-                                />
-
-                                <input
-                                    type="number"
-                                    name="weightage"
-                                    placeholder="Weightage"
-                                    className="border p-3 rounded"
-                                    value={formData.weightage}
-                                    onChange={handleChange}
-                                />
-
-                            </div>
-
-                            <button
-                                type="submit"
-                                className="bg-black text-white px-6 py-3 rounded mt-6"
-                            >
-                                Update Goal
-                            </button>
-
-                        </form>
-                    )}
+            <div className="relative overflow-hidden">
+                <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+                    <div className="absolute left-[-8rem] top-[-6rem] h-72 w-72 rounded-full bg-cyan-500/12 blur-3xl" />
+                    <div className="absolute right-[-6rem] top-16 h-80 w-80 rounded-full bg-violet-500/12 blur-3xl" />
+                    <div className="absolute bottom-[-8rem] left-1/3 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
                 </div>
 
-                <button
-                    type="submit"
-                    className="bg-black text-white px-6 py-3 rounded mt-6"
-                >
-                    Create Goal
-                </button>
 
-                    <button
-                        type="button"
-                        onClick={handleGoalSubmission}
-                        className="bg-blue-600 text-white px-6 py-3 rounded mt-4 ml-4"
-                    >
-                        Submit Goals
-                    </button>
-
-            </form>
-
-            )}
-
-            <div className="bg-white p-6 rounded-xl shadow">
-
-                <h2 className="text-2xl font-bold mb-6">
-                    Goals List
-                </h2>
-
-                <table className="w-full">
-
-                    <thead>
-
-                    <tr className="border-b">
-
-                        <th className="text-left py-3">
-                            Title
-                        </th>
-
-                        <th className="text-left py-3">Description</th>
-
-                        <th className="text-left py-3">
-                            Thrust Area
-                        </th>
-
-                        <th className="text-left py-3">
-                            Status
-                        </th>
-
-                        <th className="text-left py-3">
-                            Weightage
-                        </th>
-
-                        {role !== "manager" && (
-
-                            <th className="text-left py-3">
-                                Manager
-                            </th>
-
-                        )}
-                        {role === "employee" && (
-                            <th className="text-left py-3">
-                                Actions
-                            </th>
-                        )}
-                        {role === "admin" && (
-                            <th className="text-left py-3">
-                                Employee
-                            </th>
-                        )}
-                        {role === "manager" && (
-                            <th className="text-left py-3">
-                                Actions
-                            </th>
-                        )}
-
-
-
-
-                    </tr>
-
-                    </thead>
-
-                    <tbody>
-
-                    {goals.map((goal) => (
-
-                        <tr
-                            key={goal.id}
-                            className="border-b"
-                        >
-
-                            <td className="py-3">
-                                {goal.title}
-                            </td>
-
-                            <td className="py-3">
-                                {goal.description}
-                            </td>
-
-                            <td className="py-3">
-                                {goal.thrust_area}
-                            </td>
-
-                            <div className="flex items-center gap-2">
-
-                                <span>{goal.status}</span>
-
-                                {goal.is_locked && (
-
-                                    <span className="bg-gray-800 text-white text-xs px-2 py-1 rounded">
-            Locked
-        </span>
+                    <div className="grid gap-8 xl:grid-cols-[1.35fr_0.85fr]">
+                        <div>
+                            <div className="mt-8 mb-10 flex flex-wrap gap-3">
+                                {role === "employee" && (
+                                    <button
+                                        onClick={() => setShowCreateForm(true)}
+                                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-sm font-medium text-white transition hover:bg-white/[0.08]"
+                                    >
+                                        <Plus size={16} className="text-cyan-300" />
+                                        New Goal
+                                    </button>
                                 )}
                             </div>
+                        </div>
 
-                            <td className="py-3">
-                                {goal.weightage}
-                            </td>
 
-                            {role === "employee" && (
+                    </div>
 
-                                <td className="py-3">
 
-                                    {(goal.status === "draft" ||
-                                        goal.status === "rejected") ? (
+                {role === "employee" && (
+                    <section className="mb-8 grid gap-5 xl:grid-cols-4">
+                        {Object.entries(metricConfig).map(([key, item], index) => (
+                            <MetricCard
+                                key={key}
+                                item={item}
+                                value={stats[key]}
+                                delay={index * 0.08}
+                            />
+                        ))}
+                    </section>
+                )}
 
-                                        <div className="flex gap-2">
+                <section className="rounded-3xl border border-white/10 bg-slate-950/50 p-6 shadow-[0_32px_120px_rgba(2,6,23,0.55)] backdrop-blur-xl">
+                    <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs uppercase tracking-[0.26em] text-slate-400">
+                                <Filter size={13} />
+                                Goal inventory
+                            </div>
+                            <h2 className="text-2xl font-semibold text-white">Goals list</h2>
+                            <p className="mt-1 text-sm text-slate-400">
+                                {filteredGoals.length} visible record{filteredGoals.length === 1 ? "" : "s"} in the current filter.
+                            </p>
+                        </div>
+                        {role === "employee" && (
+                        <div className="flex flex-wrap gap-2">
+                            {filters.map((filter) => (
+                                <button
+                                    key={filter.id}
+                                    onClick={() => setActiveFilter(filter.id)}
+                                    className={`rounded-2xl border px-4 py-2.5 text-sm font-medium transition ${
+                                        activeFilter === filter.id
+                                            ? "border-cyan-400/30 bg-cyan-400/12 text-white"
+                                            : "border-white/10 bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]"
+                                    }`}
+                                >
+                                    {filter.label}
+                                </button>
+                            ))}
+                        </div>
+                            )}
+                    </div>
 
-                                            <button
-                                                onClick={() => handleEdit(goal)}
-                                                className="bg-yellow-500 text-white px-4 py-1 rounded"
+                    {loading ? (
+                        <div className="flex min-h-[320px] items-center justify-center">
+                            <div className="text-center">
+                                <Loader2 size={28} className="mx-auto animate-spin text-cyan-300" />
+                                <p className="mt-4 text-sm uppercase tracking-[0.26em] text-slate-500">Loading goals</p>
+                            </div>
+                        </div>
+                    ) : filteredGoals.length === 0 ? (
+                        <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
+                                <Target size={24} className="text-slate-500" />
+                            </div>
+                            <h3 className="mt-5 text-xl font-medium text-white">No goals found</h3>
+                            <p className="mt-2 max-w-md text-sm text-slate-400">
+                                {role === "employee" ? "Create your first goal to start tracking work in this cycle." : "There are no records in the selected view yet."}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full border-separate border-spacing-y-3">
+                                <thead>
+                                    <tr>
+                                        {["Goal", "Thrust Area", "UOM", "Target", "Weight", "Status", ...(role !== "manager" ? ["Manager"] : []), ...(role === "admin" ? ["Employee"] : []), "Owner", "Actions"].map((label) => (
+                                            <th key={label} className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.24em] text-slate-500">
+                                                {label}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filteredGoals.map((goal, index) => {
+                                        const status = statusStyles(goal.status)
+                                        return (
+                                            <motion.tr
+                                                key={goal.id}
+                                                initial={{ opacity: 0, y: 12 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ duration: 0.28, delay: index * 0.03 }}
+                                                className="rounded-2xl"
+                                                data-testid="goal-row"
                                             >
-                                                Edit
-                                            </button>
+                                                <td className="rounded-l-2xl border-y border-l border-white/10 bg-white/[0.03] px-4 py-4 align-top">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/15 bg-cyan-400/10">
+                                                            <Target size={15} className="text-cyan-300" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium text-white">{goal.title}</p>
+                                                            {goal.description && <p className="mt-1 max-w-[280px] text-sm text-slate-400">{goal.description}</p>}
+                                                            {goal.is_shared && (
+                                                                <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-[11px] font-medium text-cyan-200">
+                                                                    <Users size={11} />
+                                                                    Shared KPI
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="border-y border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-slate-300">
+                                                    {goal.thrust_area || <span className="text-slate-500">-</span>}
+                                                </td>
+                                                <td className="border-y border-white/10 bg-white/[0.03] px-4 py-4">
+                                                    <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-violet-200">
+                                                        {goal.uom?.toUpperCase() || "-"}
+                                                    </span>
+                                                </td>
+                                                <td className="border-y border-white/10 bg-white/[0.03] px-4 py-4 text-sm font-medium text-white">
+                                                    {goal.target_value ?? "-"}
+                                                </td>
+                                                <td className="border-y border-white/10 bg-white/[0.03] px-4 py-4">
+                                                    <div className="flex min-w-[110px] items-center gap-3">
+                                                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+                                                            <div
+                                                                className="h-full rounded-full bg-[linear-gradient(90deg,#22d3ee,#60a5fa,#a78bfa)]"
+                                                                style={{ width: `${Math.min(goal.weightage || 0, 100)}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-sm text-slate-300">{goal.weightage}%</span>
+                                                    </div>
+                                                </td>
+                                                <td className="border-y border-white/10 bg-white/[0.03] px-4 py-4">
+                                                    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium ${status.container}`}>
+                                                        <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+                                                        {status.label}
+                                                    </span>
+                                                </td>
+                                                {role !== "manager" && (
+                                                    <td className="border-y border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-slate-400">
+                                                        {goal.manager_email || "-"}
+                                                    </td>
+                                                )}
+                                                {role === "admin" && (
+                                                    <td className="border-y border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-slate-400">
+                                                        {goal.employee_email || "-"}
+                                                    </td>
+                                                )}
+                                                <td className="border-y border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-slate-400">
+                                                    {goal.primary_owner_id || "N/A"}
+                                                </td>
+                                                <td className="rounded-r-2xl border-y border-r border-white/10 bg-white/[0.03] px-4 py-4">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {role === "employee" && (goal.status === "draft" || goal.status === "rejected") && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleEdit(goal)}
+                                                                    className="inline-flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs font-medium text-amber-200 transition hover:bg-amber-400/16"
+                                                                    data-testid="goal-edit-button"
+                                                                >
+                                                                    <Edit3 size={12} />
+                                                                    Edit
+                                                                </button>
+                                                                {goal.status === "rejected" && (
+                                                                    <button
+                                                                        onClick={() => handleResubmit(goal.id)}
+                                                                        disabled={submitting}
+                                                                        className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-medium text-cyan-100 transition hover:bg-cyan-400/16 disabled:opacity-60"
+                                                                        data-testid="goal-resubmit-button"
+                                                                    >
+                                                                        <Send size={12} />
+                                                                        Resubmit
+                                                                    </button>
+                                                                )}
+                                                            </>
+                                                        )}
 
-                                            {goal.status === "rejected" && (
+                                                        {role === "manager" && (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleManagerEdit(goal)}
+                                                                    className="inline-flex items-center gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs font-medium text-amber-200 transition hover:bg-amber-400/16"
+                                                                    data-testid="goal-manager-edit-button"
+                                                                >
+                                                                    <Edit3 size={12} />
+                                                                    Edit
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleApprove(goal.id)}
+                                                                    disabled={submitting}
+                                                                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-medium text-emerald-200 transition hover:bg-emerald-400/16 disabled:opacity-60"
+                                                                    data-testid="goal-approve-button"
+                                                                >
+                                                                    <CheckCircle2 size={12} />
+                                                                    Approve
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleReject(goal.id)}
+                                                                    disabled={submitting}
+                                                                    className="inline-flex items-center gap-2 rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-medium text-rose-200 transition hover:bg-rose-400/16 disabled:opacity-60"
+                                                                    data-testid="goal-reject-button"
+                                                                >
+                                                                    <XCircle size={12} />
+                                                                    Reject
+                                                                </button>
+                                                            </>
+                                                        )}
 
-                                                <button
-                                                    onClick={() => handleResubmit(goal.id)}
-                                                    className="bg-blue-600 text-white px-4 py-1 rounded"
-                                                >
-                                                    Resubmit
-                                                </button>
+                                                        {role === "admin" && <span className="text-sm text-slate-500">Read-only</span>}
+                                                    </div>
+                                                </td>
+                                            </motion.tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
 
-                                            )}
-
-                                        </div>
-
-                                    ) : goal.status === "submitted" ? (
-
-                                        <span className="text-blue-600 font-medium">
-                Submitted
-            </span>
-
-                                    ) : (
-
-                                        <span className="text-gray-500 font-medium">
-                Locked
-            </span>
-
-                                    )}
-
-                                </td>
-                            )}
-
-
-
-
-
-                            {role === "manager" && (
-
-                                <td className="py-3 flex gap-2">
-
-                                    <button
-                                        onClick={() => handleManagerEdit(goal)}
-                                        className="bg-yellow-500 text-white px-4 py-1 rounded"
-                                    >
-                                        Edit
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleApprove(goal.id)}
-                                        className="bg-green-600 text-white px-4 py-1 rounded"
-                                    >
-                                        Approve
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleReject(goal.id)}
-                                        className="bg-red-600 text-white px-4 py-1 rounded"
-                                    >
-                                        Reject
-                                    </button>
-
-                                </td>
-                            )}
-                            {role === "admin" && (
-                                <td className="py-3">
-                                    {goal.employee_email}
-                                </td>
-                            )}
-                            {role === "manager" && (
-
-                                <td className="py-3 flex gap-2">
-
-                                    <button
-                                        onClick={() => handleApprove(goal.id)}
-                                        className="bg-green-600 text-white px-4 py-1 rounded"
-                                    >
-                                        Approve
-                                    </button>
-
-                                    <button
-                                        onClick={() => handleReject(goal.id)}
-                                        className="bg-red-600 text-white px-4 py-1 rounded"
-                                    >
-                                        Reject
-                                    </button>
-
-                                </td>
-                            )}
-
-                        </tr>
-
-                    ))}
-
-                    </tbody>
-
-                </table>
-
+                    {role === "employee" && !loading && filteredGoals.length > 0 && (
+                        <div className="mt-6 flex justify-end border-t border-white/10 pt-6">
+                            <button
+                                onClick={handleGoalSubmission}
+                                disabled={submitting}
+                                className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/12 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/16 disabled:opacity-60"
+                            >
+                                {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                Submit All
+                            </button>
+                        </div>
+                    )}
+                </section>
             </div>
 
+
+            <AnimatePresence>
+                {showCreateForm && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-40 bg-black/70 backdrop-blur-md"
+                            onClick={resetForm}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.96, y: 16 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                            transition={{ duration: 0.22 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        >
+                            <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-white/10 bg-slate-950 p-6 shadow-[0_40px_120px_rgba(2,6,23,0.7)]">
+                                <div className="mb-6 flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-xs uppercase tracking-[0.26em] text-cyan-300/80">Goal editor</p>
+                                        <h3 className="mt-2 text-2xl font-semibold text-white">
+                                            {editingGoalId ? "Update goal" : "Create goal"}
+                                        </h3>
+                                        <p className="mt-1 text-sm text-slate-400">
+                                            {editingGoalId ? "Refine the existing goal details and save the update." : "Define a new goal without changing the existing API contract."}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={resetForm}
+                                        className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleSubmit} className="grid gap-5 lg:grid-cols-2">
+                                    <Field label="Goal Title" full>
+                                        <input
+                                            type="text"
+                                            name="title"
+                                            value={formData.title}
+                                            onChange={handleChange}
+                                            required
+                                            className={inputClasses}
+                                            placeholder="Increase quarterly revenue"
+                                            data-testid="goal-title-input"
+                                        />
+                                    </Field>
+                                    <Field label="Description" full>
+                                        <input
+                                            type="text"
+                                            name="description"
+                                            value={formData.description}
+                                            onChange={handleChange}
+                                            className={inputClasses}
+                                            placeholder="Brief description"
+                                            data-testid="goal-description-input"
+                                        />
+                                    </Field>
+                                    <Field label="Thrust Area">
+                                        <input
+                                            type="text"
+                                            name="thrust_area"
+                                            value={formData.thrust_area}
+                                            onChange={handleChange}
+                                            className={inputClasses}
+                                            placeholder="Sales, Innovation"
+                                            data-testid="goal-thrust-area-input"
+                                        />
+                                    </Field>
+                                    <Field label="Unit of Measure">
+                                        <select
+                                            name="uom"
+                                            value={formData.uom}
+                                            onChange={handleChange}
+                                            required
+                                            className={inputClasses}
+                                            data-testid="goal-uom-select"
+                                        >
+                                            <option value="">Select UOM</option>
+                                            <option value="min">Min - Minimum</option>
+                                            <option value="max">Max - Maximum</option>
+                                            <option value="zero">Zero - Target Value</option>
+                                        </select>
+                                    </Field>
+                                    <Field label="Target Value">
+                                        <input
+                                            type="number"
+                                            name="target_value"
+                                            value={formData.target_value}
+                                            onChange={handleChange}
+                                            required
+                                            className={inputClasses}
+                                            placeholder="Numeric target"
+                                            data-testid="goal-target-input"
+                                        />
+                                    </Field>
+                                    <Field label="Weightage (%)">
+                                        <input
+                                            type="number"
+                                            name="weightage"
+                                            value={formData.weightage}
+                                            onChange={handleChange}
+                                            required
+                                            className={inputClasses}
+                                            placeholder="0 - 100"
+                                            data-testid="goal-weightage-input"
+                                        />
+                                    </Field>
+                                    <Field label="Manager Email" full>
+                                        <input
+                                            type="email"
+                                            name="manager_email"
+                                            value={formData.manager_email}
+                                            onChange={handleChange}
+                                            required
+                                            className={inputClasses}
+                                            placeholder="manager@company.com"
+                                            data-testid="goal-manager-input"
+                                        />
+                                    </Field>
+
+                                    <div className="flex justify-end gap-3 lg:col-span-2">
+                                        <button
+                                            type="button"
+                                            onClick={resetForm}
+                                            className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06]"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={submitting}
+                                            className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/12 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/16 disabled:opacity-60"
+                                            data-testid="goal-submit-button"
+                                        >
+                                            {submitting && <Loader2 size={15} className="animate-spin" />}
+                                            {editingGoalId ? "Update Goal" : "Create Goal"}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {role === "manager" && managerEditMode && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-40 bg-black/70 backdrop-blur-md"
+                            onClick={closeManagerEdit}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.96, y: 16 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                            transition={{ duration: 0.22 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        >
+                            <div className="w-full max-w-xl rounded-[28px] border border-white/10 bg-slate-950 p-6 shadow-[0_40px_120px_rgba(2,6,23,0.7)]">
+                                <div className="mb-6 flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-xs uppercase tracking-[0.26em] text-cyan-300/80">Manager edit</p>
+                                        <h3 className="mt-2 text-2xl font-semibold text-white">Adjust target and weight</h3>
+                                    </div>
+                                    <button
+                                        onClick={closeManagerEdit}
+                                        className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleManagerUpdate} className="space-y-5">
+                                    <Field label="Target Value">
+                                        <input
+                                            type="number"
+                                            name="target_value"
+                                            value={formData.target_value}
+                                            onChange={handleChange}
+                                            required
+                                            className={inputClasses}
+                                        />
+                                    </Field>
+                                    <Field label="Weightage (%)">
+                                        <input
+                                            type="number"
+                                            name="weightage"
+                                            value={formData.weightage}
+                                            onChange={handleChange}
+                                            required
+                                            className={inputClasses}
+                                        />
+                                    </Field>
+
+                                    <div className="flex justify-end gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={closeManagerEdit}
+                                            className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06]"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={submitting}
+                                            className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/12 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/16 disabled:opacity-60"
+                                        >
+                                            {submitting && <Loader2 size={15} className="animate-spin" />}
+                                            Update Goal
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+
+                        </motion.div>
+
+                    </>
+                )}
+
+
+            </AnimatePresence>
         </MainLayout>
     )
 }
