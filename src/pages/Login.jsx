@@ -29,7 +29,10 @@ function Login() {
 
             // eslint-disable-next-line no-unused-vars
         } catch (error) {
-            alert("Invalid Credentials")
+            alert(
+                error.response?.data?.detail ||
+                "Invalid Credentials"
+            )
         }
     }
 

@@ -19,6 +19,61 @@ export const createGoal = async (goalData) => {
     return response.data
 }
 
+export const editGoal = async (goalId, goalData) => {
+
+    const response = await axios.put(
+        `${BASE_URL}/goals/${goalId}`,
+        goalData,
+        getAuthHeaders()
+    )
+
+    return response.data
+}
+
+export const managerBulkUpdateGoals = async (payload) => {
+
+    const response = await axios.put(
+        `${BASE_URL}/manager/goals/bulk-update`,
+        payload,
+        getAuthHeaders()
+    )
+
+    return response.data
+}
+
+export const submitGoals = async () => {
+
+    const response = await axios.post(
+        `${BASE_URL}/goals/submit`,
+        {},
+        getAuthHeaders()
+    )
+
+    return response.data
+}
+
+export const resubmitGoal = async (goalId) => {
+
+    const response = await axios.put(
+        `${BASE_URL}/goals/${goalId}/resubmit`,
+        {},
+        getAuthHeaders()
+    )
+
+    return response.data
+}
+
+export const unlockGoal = async (goalId) => {
+
+    const response = await axios.put(
+        `${BASE_URL}/goals/${goalId}/unlock`,
+        {},
+        getAuthHeaders()
+    )
+
+    return response.data
+}
+
 export const getEmployeeGoals = async () => {
 
     const response = await axios.get(

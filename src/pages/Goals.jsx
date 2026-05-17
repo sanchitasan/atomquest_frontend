@@ -8,13 +8,19 @@ import {
     getEmployeeGoals,
     getGoals,
     approveGoal,
-    rejectGoal
+    rejectGoal,
+    submitGoals,
+    editGoal,
+    resubmitGoal,
+    managerBulkUpdateGoals,
 } from "../api/goalApi"
 
 function Goals() {
 
     const [goals, setGoals] = useState([])
     const role = localStorage.getItem("role")
+    const [editingGoalId, setEditingGoalId] = useState(null)
+    const [managerEditMode, setManagerEditMode] = useState(false)
 
 
     const [formData, setFormData] = useState({
@@ -30,8 +36,6 @@ function Goals() {
 
 
     })
-
-
 
     const fetchGoals = async () => {
 
@@ -66,6 +70,122 @@ function Goals() {
         fetchGoals()
 
     }, [])
+    const handleEdit = (goal) => {
+
+        setEditingGoalId(goal.id)
+
+        setFormData({
+
+            title: goal.title,
+            description: goal.description,
+            thrust_area: goal.thrust_area,
+            uom: goal.uom,
+            target_value: goal.target_value,
+            weightage: goal.weightage,
+            manager_email: goal.manager_email,
+        })
+    }
+    const handleManagerEdit = (goal) => {
+
+        setManagerEditMode(true)
+
+        setEditingGoalId(goal.id)
+
+        setFormData({
+
+            target_value: goal.target_value,
+            weightage: goal.weightage,
+        })
+    }
+    const handleManagerUpdate = async (e) => {
+
+        e.preventDefault()
+
+        try {
+
+            await managerBulkUpdateGoals({
+
+                employee_id: goals.find(
+                    g => g.id === editingGoalId
+                )?.employee_id,
+
+                goals: goals.map(g => {
+
+                    if (g.id === editingGoalId) {
+
+                        return {
+                            goal_id: g.id,
+                            target_value: Number(formData.target_value),
+                            weightage: Number(formData.weightage)
+                        }
+                    }
+
+                    return {
+                        goal_id: g.id,
+                        target_value: g.target_value,
+                        weightage: g.weightage
+                    }
+                })
+            })
+
+            alert("Goal Updated Successfully")
+
+            setManagerEditMode(false)
+
+            setEditingGoalId(null)
+
+            fetchGoals()
+
+        } catch (error) {
+
+            console.log(error)
+
+            alert(
+                error.response?.data?.detail ||
+                "Manager Update Failed"
+            )
+        }
+    }
+    const handleGoalSubmission = async () => {
+
+        try {
+
+            await submitGoals()
+
+            alert("Goals Submitted Successfully")
+
+            fetchGoals()
+
+        } catch (error) {
+
+            console.log(error)
+
+            alert(
+                error.response?.data?.detail ||
+                "Goal Submission Failed"
+            )
+        }
+    }
+    const handleResubmit = async (goalId) => {
+
+        try {
+
+            await resubmitGoal(goalId)
+
+            alert("Goal Resubmitted Successfully")
+
+            fetchGoals()
+
+        } catch (error) {
+
+            console.log(error)
+
+            alert(
+                error.response?.data?.detail ||
+                "Resubmission Failed"
+            )
+        }
+    }
     const handleApprove = async (goalId) => {
 
         try {
@@ -100,7 +220,6 @@ function Goals() {
             alert("Rejection Failed")
         }
     }
-
     const handleChange = (e) => {
 
         setFormData({
@@ -110,21 +229,40 @@ function Goals() {
             [e.target.name]: e.target.value
         })
     }
-
     const handleSubmit = async (e) => {
 
         e.preventDefault()
 
         try {
 
-            await createGoal({
+            if (editingGoalId) {
 
-                ...formData,
+                await editGoal(editingGoalId, {
 
-                target_value: Number(formData.target_value),
+                    ...formData,
 
-                weightage: Number(formData.weightage),
-            })
+                    target_value: Number(formData.target_value),
+
+                    weightage: Number(formData.weightage),
+                })
+
+                alert("Goal Updated Successfully")
+
+                setEditingGoalId(null)
+
+            } else {
+
+                await createGoal({
+
+                    ...formData,
+
+                    target_value: Number(formData.target_value),
+
+                    weightage: Number(formData.weightage),
+                })
+
+                alert("Goal Created Successfully")
+            }
 
             alert("Goal Created Successfully")
 
@@ -146,7 +284,10 @@ function Goals() {
 
             console.log(error)
 
-            alert("Goal Creation Failed")
+            alert(
+                error.response?.data?.detail ||
+                "Goal Creation Failed"
+            )
         }
     }
 
@@ -229,7 +370,44 @@ function Goals() {
                         value={formData.manager_email}
                         onChange={handleChange}
                     />
+                    {role === "manager" && managerEditMode && (
 
+                        <form
+                            onSubmit={handleManagerUpdate}
+                            className="bg-white p-6 rounded-xl shadow mb-10"
+                        >
+
+                            <div className="grid grid-cols-2 gap-4">
+
+                                <input
+                                    type="number"
+                                    name="target_value"
+                                    placeholder="Target Value"
+                                    className="border p-3 rounded"
+                                    value={formData.target_value}
+                                    onChange={handleChange}
+                                />
+
+                                <input
+                                    type="number"
+                                    name="weightage"
+                                    placeholder="Weightage"
+                                    className="border p-3 rounded"
+                                    value={formData.weightage}
+                                    onChange={handleChange}
+                                />
+
+                            </div>
+
+                            <button
+                                type="submit"
+                                className="bg-black text-white px-6 py-3 rounded mt-6"
+                            >
+                                Update Goal
+                            </button>
+
+                        </form>
+                    )}
                 </div>
 
                 <button
@@ -238,6 +416,14 @@ function Goals() {
                 >
                     Create Goal
                 </button>
+
+                    <button
+                        type="button"
+                        onClick={handleGoalSubmission}
+                        className="bg-blue-600 text-white px-6 py-3 rounded mt-4 ml-4"
+                    >
+                        Submit Goals
+                    </button>
 
             </form>
 
@@ -273,10 +459,18 @@ function Goals() {
                             Weightage
                         </th>
 
-                        <th className="text-left py-3">
-                            Manager
-                        </th>
+                        {role !== "manager" && (
 
+                            <th className="text-left py-3">
+                                Manager
+                            </th>
+
+                        )}
+                        {role === "employee" && (
+                            <th className="text-left py-3">
+                                Actions
+                            </th>
+                        )}
                         {role === "admin" && (
                             <th className="text-left py-3">
                                 Employee
@@ -316,17 +510,99 @@ function Goals() {
                                 {goal.thrust_area}
                             </td>
 
-                            <td className="py-3">
-                                {goal.status}
-                            </td>
+                            <div className="flex items-center gap-2">
+
+                                <span>{goal.status}</span>
+
+                                {goal.is_locked && (
+
+                                    <span className="bg-gray-800 text-white text-xs px-2 py-1 rounded">
+            Locked
+        </span>
+                                )}
+                            </div>
 
                             <td className="py-3">
                                 {goal.weightage}
                             </td>
-                            <td className="py-3">
-                                {goal.manager_email}
-                            </td>
 
+                            {role === "employee" && (
+
+                                <td className="py-3">
+
+                                    {(goal.status === "draft" ||
+                                        goal.status === "rejected") ? (
+
+                                        <div className="flex gap-2">
+
+                                            <button
+                                                onClick={() => handleEdit(goal)}
+                                                className="bg-yellow-500 text-white px-4 py-1 rounded"
+                                            >
+                                                Edit
+                                            </button>
+
+                                            {goal.status === "rejected" && (
+
+                                                <button
+                                                    onClick={() => handleResubmit(goal.id)}
+                                                    className="bg-blue-600 text-white px-4 py-1 rounded"
+                                                >
+                                                    Resubmit
+                                                </button>
+
+                                            )}
+
+                                        </div>
+
+                                    ) : goal.status === "submitted" ? (
+
+                                        <span className="text-blue-600 font-medium">
+                Submitted
+            </span>
+
+                                    ) : (
+
+                                        <span className="text-gray-500 font-medium">
+                Locked
+            </span>
+
+                                    )}
+
+                                </td>
+                            )}
+
+
+
+
+
+                            {role === "manager" && (
+
+                                <td className="py-3 flex gap-2">
+
+                                    <button
+                                        onClick={() => handleManagerEdit(goal)}
+                                        className="bg-yellow-500 text-white px-4 py-1 rounded"
+                                    >
+                                        Edit
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleApprove(goal.id)}
+                                        className="bg-green-600 text-white px-4 py-1 rounded"
+                                    >
+                                        Approve
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleReject(goal.id)}
+                                        className="bg-red-600 text-white px-4 py-1 rounded"
+                                    >
+                                        Reject
+                                    </button>
+
+                                </td>
+                            )}
                             {role === "admin" && (
                                 <td className="py-3">
                                     {goal.employee_email}

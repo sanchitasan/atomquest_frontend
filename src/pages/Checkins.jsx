@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-
 import MainLayout from "../layouts/MainLayout"
 
 import {
@@ -11,28 +10,51 @@ import {
     getEmployeeGoals
 } from "../api/goalApi"
 
+function getStatusColor(status) {
+    switch (status?.toLowerCase()) {
+        case "approved":
+        case "on_track":
+            return "text-green-600"
+        case "pending":
+        case "submitted":
+            return "text-amber-600"
+        case "rejected":
+        case "behind":
+            return "text-red-600"
+        default:
+            return "text-gray-600"
+    }
+}
+
 function Checkins() {
 
     const [checkins, setCheckins] = useState([])
-
     const [goals, setGoals] = useState([])
+    const [loading, setLoading] = useState(true)
 
     const role = localStorage.getItem("role")
 
     const [formData, setFormData] = useState({
 
         quarter: "",
-
-        progress: "",
-
+        planned_value: "",
+        actual_value: "",
+        employee_comment: "",
         goal_id: ""
     })
 
     useEffect(() => {
 
-        fetchCheckIns()
+        const loadData = async () => {
 
-        fetchGoals()
+            setLoading(true)
+
+            await Promise.all([fetchCheckIns(), fetchGoals()])
+
+            setLoading(false)
+        }
+
+        loadData()
 
     }, [])
 
@@ -42,11 +64,16 @@ function Checkins() {
 
             const data = await getCheckIns()
 
-            setCheckins(data)
+            setCheckins(Array.isArray(data) ? data : [])
 
         } catch (error) {
 
             console.log(error)
+
+            alert(
+                error.response?.data?.detail ||
+                "Failed to fetch check-ins"
+            )
         }
     }
 
@@ -56,7 +83,7 @@ function Checkins() {
 
             const data = await getEmployeeGoals()
 
-            const approvedGoals = data.filter(
+            const approvedGoals = (Array.isArray(data) ? data : []).filter(
                 goal => goal.status === "approved"
             )
 
@@ -86,21 +113,21 @@ function Checkins() {
 
             await createCheckIn({
 
-                ...formData,
-
-                progress: Number(formData.progress),
-
+                quarter: formData.quarter,
+                planned_value: Number(formData.planned_value),
+                actual_value: Number(formData.actual_value),
+                employee_comment: formData.employee_comment,
                 goal_id: Number(formData.goal_id)
             })
 
-            alert("Check-In Submitted")
+            alert("Check-in submitted")
 
             setFormData({
 
                 quarter: "",
-
-                progress: "",
-
+                planned_value: "",
+                actual_value: "",
+                employee_comment: "",
                 goal_id: ""
             })
 
@@ -110,8 +137,16 @@ function Checkins() {
 
             console.log(error)
 
-            alert("Check-In Failed")
+            alert(
+                error.response?.data?.detail ||
+                "Check-in submission failed"
+            )
         }
+    }
+
+    const getGoalTitle = (goalId) => {
+
+        return goals.find(goal => goal.id === goalId)?.title || "N/A"
     }
 
     return (
@@ -119,7 +154,7 @@ function Checkins() {
         <MainLayout>
 
             <h1 className="text-4xl font-bold mb-8">
-                Check-Ins
+                Check-ins
             </h1>
 
             {role === "employee" && (
@@ -129,25 +164,34 @@ function Checkins() {
                     className="bg-white p-6 rounded-xl shadow mb-10"
                 >
 
+                    <h2 className="text-2xl font-bold mb-6">
+                        Submit Check-in
+                    </h2>
+
                     <div className="grid grid-cols-2 gap-4">
+
+                        <input
+                            type="text"
+                            name="quarter"
+                            placeholder="Quarter (e.g. Q1 2026)"
+                            className="border p-3 rounded"
+                            value={formData.quarter}
+                            onChange={handleChange}
+                            required
+                        />
 
                         <select
                             name="goal_id"
                             className="border p-3 rounded"
                             value={formData.goal_id}
                             onChange={handleChange}
+                            required
                         >
+                            <option value="">Select Goal</option>
 
-                            <option value="">
-                                Select Goal
-                            </option>
+                            {goals.map(goal => (
 
-                            {goals.map((goal) => (
-
-                                <option
-                                    key={goal.id}
-                                    value={goal.id}
-                                >
+                                <option key={goal.id} value={goal.id}>
                                     {goal.title}
                                 </option>
 
@@ -155,30 +199,32 @@ function Checkins() {
 
                         </select>
 
-                        <select
-                            name="quarter"
+                        <input
+                            type="number"
+                            name="planned_value"
+                            placeholder="Planned Value"
                             className="border p-3 rounded"
-                            value={formData.quarter}
+                            value={formData.planned_value}
                             onChange={handleChange}
-                        >
-
-                            <option value="">
-                                Select Quarter
-                            </option>
-
-                            <option value="Q1">Q1</option>
-                            <option value="Q2">Q2</option>
-                            <option value="Q3">Q3</option>
-                            <option value="Q4">Q4</option>
-
-                        </select>
+                            required
+                        />
 
                         <input
                             type="number"
-                            name="progress"
-                            placeholder="Progress %"
+                            name="actual_value"
+                            placeholder="Actual Value"
                             className="border p-3 rounded"
-                            value={formData.progress}
+                            value={formData.actual_value}
+                            onChange={handleChange}
+                            required
+                        />
+
+                        <input
+                            type="text"
+                            name="employee_comment"
+                            placeholder="Comment"
+                            className="border p-3 rounded col-span-2"
+                            value={formData.employee_comment}
                             onChange={handleChange}
                         />
 
@@ -188,74 +234,132 @@ function Checkins() {
                         type="submit"
                         className="bg-black text-white px-6 py-3 rounded mt-6"
                     >
-                        Submit Check-In
+                        Submit Check-in
                     </button>
 
                 </form>
 
             )}
 
-            <div className="bg-white p-6 rounded-xl shadow">
+            <div className="bg-white p-6 rounded-xl shadow overflow-x-auto">
 
                 <h2 className="text-2xl font-bold mb-6">
-                    Check-In History
+                    Check-in History
                 </h2>
 
-                <table className="w-full">
+                {loading ? (
 
-                    <thead>
+                    <p className="text-gray-500">
+                        Loading check-ins...
+                    </p>
 
-                    <tr className="border-b">
+                ) : checkins.length === 0 ? (
 
-                        <th className="text-left py-3">
-                            Quarter
-                        </th>
+                    <p className="text-gray-500">
+                        No check-ins found.
+                    </p>
 
-                        <th className="text-left py-3">
-                            Progress
-                        </th>
+                ) : (
 
-                        <th className="text-left py-3">
-                            Goal Title
-                        </th>
+                    <table className="w-full text-sm">
 
-                    </tr>
+                        <thead>
 
-                    </thead>
+                            <tr className="border-b">
 
-                    <tbody>
+                                <th className="text-left py-3 px-3">
+                                    Quarter
+                                </th>
 
-                    {checkins.map((checkin) => (
+                                <th className="text-left py-3 px-3">
+                                    Goal
+                                </th>
 
-                        <tr
-                            key={checkin.id}
-                            className="border-b"
-                        >
-                            <td className="py-3">
-                                {checkin.quarter}
-                            </td>
+                                <th className="text-left py-3 px-3">
+                                    Planned
+                                </th>
 
-                            <td className="py-3">
-                                {checkin.progress}%
-                            </td>
-                            <td className="py-3">
+                                <th className="text-left py-3 px-3">
+                                    Actual
+                                </th>
 
-                                {
-                                    goals.find(
-                                        goal => goal.id === checkin.goal_id
-                                    )?.title || "N/A"
-                                }
+                                <th className="text-left py-3 px-3">
+                                    Progress
+                                </th>
 
-                            </td>
+                                <th className="text-left py-3 px-3">
+                                    Status
+                                </th>
 
+                                <th className="text-left py-3 px-3">
+                                    Comment
+                                </th>
 
-                        </tr>
+                            </tr>
 
-                    ))}
+                        </thead>
 
-                    </tbody>
+                        <tbody>
 
-                </table>
+                            {checkins.map((checkin) => (
+
+                                <tr
+                                    key={checkin.id}
+                                    className="border-b hover:bg-gray-50"
+                                >
+
+                                    <td className="py-4 px-3">
+                                        {checkin.quarter}
+                                    </td>
+
+                                    <td className="py-4 px-3 font-medium">
+                                        {getGoalTitle(checkin.goal_id)}
+                                    </td>
+
+                                    <td className="py-4 px-3">
+                                        {checkin.planned_value}
+                                    </td>
+
+                                    <td className="py-4 px-3">
+                                        {checkin.actual_value}
+                                    </td>
+
+                                    <td className="py-4 px-3">
+
+                                        <div className="w-full bg-gray-200 rounded-full h-4">
+
+                                            <div
+                                                className="bg-black h-4 rounded-full transition-all"
+                                                style={{
+                                                    width: `${Math.min(checkin.progress_score ?? 0, 100)}%`
+                                                }}
+                                            ></div>
+
+                                        </div>
+
+                                        <span className="text-sm font-medium">
+        {checkin.progress_score ?? 0}%
+    </span>
+
+                                    </td>
+
+                                    <td className={`py-4 px-3 font-semibold capitalize ${getStatusColor(checkin.status)}`}>
+                                        {checkin.status ?? "—"}
+                                    </td>
+
+                                    <td className="py-4 px-3 max-w-xs">
+                                        {checkin.employee_comment ?? "—"}
+                                    </td>
+
+                                </tr>
+
+                            ))}
+
+                        </tbody>
+
+                    </table>
+
+                )}
 
             </div>
 
