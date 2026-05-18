@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import MainLayout from "../layouts/MainLayout"
+import { getApiErrorMessage } from "../api/config"
 import { editGoal, getEmployeeGoals } from "../api/goalApi"
 import {
     Award,
+    AlertCircle,
     Edit3,
     Layers3,
     Loader2,
@@ -31,6 +33,18 @@ function toast(message, color = "#22c55e") {
 const inputClasses =
     "w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
 
+function normalizeGoal(goal) {
+    return {
+        ...goal,
+        employeeId: goal.employee_id ?? goal.user_id ?? null,
+        employeeEmail: goal.employee_email || goal.email || "",
+        managerEmail: goal.manager_email || goal.primary_owner_email || "",
+        primaryOwnerEmail: goal.primary_owner_email || "",
+        primaryOwnerId: goal.primary_owner_id ?? null,
+        isSharedKpi: Boolean(goal.is_shared || goal.primary_owner_id || goal.primary_owner_email),
+    }
+}
+
 function MetricCard({ title, value, note, icon: Icon, accent, delay }) {
     return (
         <motion.div
@@ -56,12 +70,10 @@ function MetricCard({ title, value, note, icon: Icon, accent, delay }) {
 export default function AssignedKPI() {
     const [goals, setGoals] = useState([])
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState("")
     const [editModal, setEditModal] = useState(null)
     const [weightage, setWeightage] = useState("")
     const [submitting, setSubmitting] = useState(false)
-
-    const userEmail = localStorage.getItem("email")
-    const userId = localStorage.getItem("user_id")
 
     useEffect(() => {
         fetchAssigned()
@@ -69,19 +81,17 @@ export default function AssignedKPI() {
 
     async function fetchAssigned() {
         setLoading(true)
+        setError("")
         try {
             const data = await getEmployeeGoals()
-            const assigned = (Array.isArray(data) ? data : []).filter((goal) => {
-                const isShared = !!goal.is_shared || !!goal.primary_owner_id || !!goal.primary_owner_email
-                const managerAssigned = goal.manager_email && goal.employee_email && goal.manager_email !== goal.employee_email
-                const belongsToUser =
-                    (goal.employee_email && goal.employee_email === userEmail) ||
-                    (goal.employee_id && String(goal.employee_id) === String(userId))
-                return belongsToUser && (isShared || managerAssigned)
-            })
+            const assigned = (Array.isArray(data) ? data : [])
+                .map(normalizeGoal)
+                .filter((goal) => goal.isSharedKpi)
             setGoals(assigned)
         } catch (err) {
             console.error(err)
+            setGoals([])
+            setError(getApiErrorMessage(err, "Failed to load assigned Goals"))
         } finally {
             setLoading(false)
         }
@@ -99,20 +109,28 @@ export default function AssignedKPI() {
 
     const updateWeightage = async () => {
         if (!editModal) return
-        if (Number(weightage) < 0 || Number(weightage) > 100) {
+        if (Number(weightage) < 10 || Number(weightage) > 100) {
             toast("Weightage must be between 0 and 100", "#ef4444")
             return
         }
 
         setSubmitting(true)
         try {
-            await editGoal(editModal.id, { weightage: Number(weightage) })
+            await editGoal(editModal.id, {
+                title: editModal.title || "",
+                description: editModal.description || "",
+                thrust_area: editModal.thrust_area || "",
+                uom: editModal.uom || "",
+                target_value: Number(editModal.target_value ?? 0),
+                weightage: Number(weightage),
+                manager_email: editModal.manager_email || editModal.managerEmail || "",
+            })
             toast("Weightage updated")
             closeEdit()
             fetchAssigned()
         } catch (err) {
             console.error(err)
-            toast("Failed to update weightage", "#ef4444")
+            toast(getApiErrorMessage(err, "Failed to update weightage"), "#ef4444")
         } finally {
             setSubmitting(false)
         }
@@ -120,7 +138,7 @@ export default function AssignedKPI() {
 
     const metrics = useMemo(() => {
         const total = goals.length
-        const shared = goals.filter((goal) => goal.is_shared || goal.primary_owner_id || goal.primary_owner_email).length
+        const shared = goals.filter((goal) => goal.isSharedKpi).length
         const editable = goals.filter((goal) => goal.weightage != null).length
         return { total, shared, editable }
     }, [goals])
@@ -133,65 +151,37 @@ export default function AssignedKPI() {
                     <div className="absolute right-[-6rem] top-16 h-80 w-80 rounded-full bg-violet-500/12 blur-3xl" />
                     <div className="absolute bottom-[-8rem] left-1/3 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
                 </div>
-
-                <motion.section
-                    initial={{ opacity: 0, y: 18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.45 }}
-                    className="mb-8 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.15),_transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.92))] p-8 shadow-[0_40px_120px_rgba(2,6,23,0.7)]"
-                >
-                    <div className="grid gap-8 xl:grid-cols-[1.35fr_0.85fr]">
-                        <div>
-                            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.28em] text-cyan-200">
-                                <Award size={14} />
-                                Assigned KPI board
-                            </div>
-                            <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-white">Review manager-assigned KPIs with a cleaner card layout and update your weightage from the same dark workflow.</h1>
-                            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-                                Assigned KPIs are presented as operational cards with read-only goal details and a focused edit modal for weight changes.
-                            </p>
-                        </div>
-
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                            <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-5">
-                                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Assigned count</p>
-                                <p className="mt-3 text-3xl font-semibold text-white">{loading ? "-" : metrics.total}</p>
-                                <p className="mt-2 text-sm text-slate-400">KPIs currently assigned to your employee record.</p>
-                            </div>
-                            <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-5">
-                                <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Shared scope</p>
-                                <p className="mt-3 text-3xl font-semibold text-white">{loading ? "-" : metrics.shared}</p>
-                                <p className="mt-2 text-sm text-slate-400">Shared or owner-linked KPIs in your current list.</p>
-                            </div>
-                        </div>
-                    </div>
-                </motion.section>
-
-                <section className="mb-8 grid gap-5 xl:grid-cols-3">
-                    <MetricCard title="Assigned KPIs" value={loading ? "-" : metrics.total} note="Goals assigned to you by your manager." icon={Layers3} accent="#60a5fa" delay={0} />
-                    <MetricCard title="Shared KPIs" value={loading ? "-" : metrics.shared} note="Shared or primary-owner linked KPI records." icon={Users} accent="#34d399" delay={0.08} />
-                    <MetricCard title="Editable Weight" value={loading ? "-" : metrics.editable} note="KPIs where weightage is available to review and adjust." icon={Target} accent="#a78bfa" delay={0.16} />
+                <section className="mb-8 grid gap-5 xl:grid-cols-2">
+                    <MetricCard title="Assigned Goals" value={loading ? "-" : metrics.total} note="Goals assigned to you by your manager." icon={Layers3} accent="#60a5fa" delay={0} />
+                 <MetricCard title="Editable Weight" value={loading ? "-" : metrics.editable} note="Goals where weightage is available to review and adjust." icon={Target} accent="#a78bfa" delay={0.16} />
                 </section>
 
                 <section className="rounded-3xl border border-white/10 bg-slate-950/50 p-6 shadow-[0_32px_120px_rgba(2,6,23,0.55)] backdrop-blur-xl">
                     <div className="mb-6">
-                        <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/80">KPI inventory</p>
-                        <h2 className="mt-2 text-2xl font-semibold text-white">Assigned KPI cards</h2>
-                    </div>
+                        <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/80">Goal inventory</p>
+                     </div>
 
                     {loading ? (
                         <div className="flex min-h-[240px] items-center justify-center">
                             <div className="text-center">
                                 <Loader2 size={28} className="mx-auto animate-spin text-cyan-300" />
-                                <p className="mt-4 text-sm uppercase tracking-[0.26em] text-slate-500">Loading assigned KPIs</p>
+                                <p className="mt-4 text-sm uppercase tracking-[0.26em] text-slate-500">Loading assigned Goals</p>
                             </div>
+                        </div>
+                    ) : error ? (
+                        <div className="flex min-h-[240px] flex-col items-center justify-center text-center">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-400/10">
+                                <AlertCircle size={24} className="text-rose-300" />
+                            </div>
+                            <h3 className="mt-5 text-xl font-medium text-white">Unable to load assigned Goals</h3>
+                            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">{error}</p>
                         </div>
                     ) : goals.length === 0 ? (
                         <div className="flex min-h-[240px] flex-col items-center justify-center text-center">
                             <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
                                 <Award size={24} className="text-slate-500" />
                             </div>
-                            <h3 className="mt-5 text-xl font-medium text-white">No assigned KPIs found</h3>
+                            <h3 className="mt-5 text-xl font-medium text-white">No assigned Goals found</h3>
                         </div>
                     ) : (
                         <div className="grid gap-5 xl:grid-cols-2">
@@ -238,8 +228,19 @@ export default function AssignedKPI() {
                                             <p className="mt-2 text-sm text-slate-300">{goal.thrust_area || "-"}</p>
                                         </div>
                                         <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
-                                            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Manager</p>
-                                            <p className="mt-2 text-sm text-slate-300">{goal.manager_email || "-"}</p>
+                                            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Assigned by</p>
+                                            <p className="mt-2 text-sm text-slate-300">{goal.managerEmail || "-"}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                                        <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                                            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Primary Owner</p>
+                                            <p className="mt-2 text-sm text-slate-300">{goal.primaryOwnerEmail || goal.primaryOwnerId || "Not assigned"}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                                            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Goal Type</p>
+                                            <p className="mt-2 text-sm text-slate-300">{goal.isSharedKpi ? "Shared Goal" : "Manager Assigned"}</p>
                                         </div>
                                     </div>
                                 </motion.article>
@@ -270,8 +271,7 @@ export default function AssignedKPI() {
                                 <div className="mb-6 flex items-start justify-between gap-4">
                                     <div>
                                         <p className="text-xs uppercase tracking-[0.26em] text-cyan-300/80">Weightage editor</p>
-                                        <h3 className="mt-2 text-2xl font-semibold text-white">Edit KPI weightage</h3>
-                                    </div>
+                                     </div>
                                     <button
                                         onClick={closeEdit}
                                         className="flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-slate-400 transition hover:bg-white/[0.06] hover:text-white"

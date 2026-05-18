@@ -14,10 +14,10 @@ import Goals from "./pages/Goals"
 import Checkins from "./pages/Checkins"
 import AuditLogs from "./pages/AuditLogs"
 import Landing from "./pages/Landing"
-import TeamView from "./pages/TeamView.jsx";
 import AssignedKPI from "./pages/AssignedKPI.jsx";
 import AssignKPI from "./pages/AssignKPI.jsx";
 import Reports from "./pages/Reports.jsx";
+import SharedGoalOverview from "./pages/SharedGoalOverview.jsx";
 
 function App() {
     return (
@@ -32,9 +32,7 @@ function App() {
                 <Route
                     path="/dashboard"
                     element={
-                        <ProtectedRoute allowedRoles={["employee", "manager", "admin"]}>
                             <Dashboard />
-                        </ProtectedRoute>
                     }
                 />
                 <Route
@@ -54,13 +52,14 @@ function App() {
                     }
                 />
                 <Route
-                    path="/team-view"
+                    path="/sharedgoal-overview"
                     element={
-                        <ProtectedRoute allowedRoles={["manager"]}>
-                            <TeamView/>
+                        <ProtectedRoute allowedRoles={["employee"]}>
+                            <SharedGoalOverview/>
                         </ProtectedRoute>
                     }
                 />
+
                 {/* Assigned KPI - employee */}
                 <Route
                     path="/assigned-kpi"

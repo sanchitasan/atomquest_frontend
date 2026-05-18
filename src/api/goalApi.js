@@ -116,6 +116,7 @@ export const approveGoal = async (goalId) => {
 
     return response.data
 }
+
 export const createSharedGoal = async (goalData) => {
 
     const response = await axios.post(
@@ -150,5 +151,18 @@ export const rejectGoal = async (goalId) => {
         getAuthHeaders()
     )
 
+    return response.data
+}
+
+export const getManagerTeamProgress = async () => {
+    const token = localStorage.getItem("token")
+    const response = await axios.get(
+        `${BASE_URL}/manager/team-progress`,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        }
+    )
     return response.data
 }

@@ -18,3 +18,10 @@ export const registerUser = async (userData) => {
     })
     return response.data
 }
+
+export const allusers = async () => {
+    const response = await axios.get(`${BASE_URL}/users`, {
+
+    })
+}
+

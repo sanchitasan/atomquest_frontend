@@ -47,44 +47,15 @@ function toast(message, color = "#22c55e") {
 
 const filters = [
     { id: "all", label: "All Goals" },
-    { id: "pending", label: "Pending" },
     { id: "approved", label: "Approved" },
-    { id: "draft", label: "Drafts" },
     { id: "rejected", label: "Rejected" },
 ]
-
-const metricConfig = {
-    total: {
-        title: "Total Goals",
-        icon: Layers3,
-        accent: "#60a5fa",
-        note: "All visible goal records in scope.",
-    },
-    approved: {
-        title: "Approved",
-        icon: CheckCircle2,
-        accent: "#34d399",
-        note: "Goals cleared for execution.",
-    },
-    pending: {
-        title: "Pending Review",
-        icon: Clock3,
-        accent: "#fbbf24",
-        note: "Waiting on approval or submission flow.",
-    },
-    rejected: {
-        title: "Needs Rework",
-        icon: XCircle,
-        accent: "#fb7185",
-        note: "Returned for revision before approval.",
-    },
-}
 
 const inputClasses =
     "w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
 
 function statusStyles(status) {
-    const normalized = status?.toLowerCase()
+    const normalized = status?.trim()?.toLowerCase()
 
     if (normalized === "approved") {
         return {
@@ -191,7 +162,29 @@ function Goals() {
             else if (role === "manager") data = await getPendingGoals()
             else if (role === "admin") data = await getGoals()
 
-            setGoals(data)
+            // Ensure we always have an array
+            const raw = Array.isArray(data) ? data : []
+
+            // Normalize each goal: guarantee is_shared (boolean) and status (string).
+            // If backend sends status use that. If backend uses `goal_status`, use that.
+            // Otherwise default shared goals to "approved" (backend creates shared KPIs as approved)
+            // and non-shared to "draft".
+            const normalized = raw.map((g) => {
+                const isShared = Boolean(g.is_shared || g.isShared || g.primary_owner_id || g.primary_owner_email)
+                const statusFromResponse = typeof g.status === "string" && g.status.trim() !== ""
+                    ? g.status
+                    : typeof g.goal_status === "string" && g.goal_status.trim() !== ""
+                        ? g.goal_status
+                        : null
+
+                return {
+                    ...g,
+                    is_shared: isShared,
+                    status: statusFromResponse ?? (isShared ? "approved" : "draft"),
+                }
+            })
+
+            setGoals(normalized)
         } catch (error) {
             console.log(error)
         } finally {
@@ -319,7 +312,6 @@ function Goals() {
         if (submitLockRef.current || submitting) {
             return
         }
-
         submitLockRef.current = true
         setSubmitting(true)
 
@@ -328,14 +320,16 @@ function Goals() {
 
             setGoals((currentGoals) =>
                 currentGoals.map((goal) =>
-                    goal.status === "draft"
+                    // only convert non-shared drafts to submitted locally
+                    !goal.is_shared && (goal.status === "draft" || !goal.status)
                         ? {
-                              ...goal,
-                              status: "submitted",
-                          }
+                            ...goal,
+                            status: "submitted",
+                        }
                         : goal
                 )
             )
+
 
             try {
                 await fetchGoals({ silent: true })
@@ -395,7 +389,7 @@ function Goals() {
         const approved = goals.filter((goal) => goal.status === "approved").length
         const pending = goals.filter((goal) => ["pending", "submitted"].includes(goal.status)).length
         const rejected = goals.filter((goal) => goal.status === "rejected").length
-        const draft = goals.filter((goal) => goal.status === "draft").length
+        const draft = goals.filter((goal) => !goal.is_shared && goal.status === "draft").length
 
         return {
             total: goals.length,
@@ -407,9 +401,29 @@ function Goals() {
     }, [goals])
 
     const filteredGoals = useMemo(() => {
-        if (activeFilter === "all") return goals
-        if (activeFilter === "pending") return goals.filter((goal) => ["pending", "submitted"].includes(goal.status))
-        return goals.filter((goal) => goal.status === activeFilter)
+
+        if (activeFilter === "all") {
+            return goals
+        }
+
+        if (activeFilter === "pending") {
+            return goals.filter((goal) =>
+                ["pending", "submitted"].includes(goal.status)
+            )
+        }
+
+        if (activeFilter === "draft") {
+            return goals.filter(
+                (goal) =>
+                    !goal.is_shared &&
+                    goal.status === "draft"
+            )
+        }
+
+        return goals.filter(
+            (goal) => goal.status === activeFilter
+        )
+
     }, [activeFilter, goals])
 
     return (
@@ -443,14 +457,7 @@ function Goals() {
 
                 {role === "employee" && (
                     <section className="mb-8 grid gap-5 xl:grid-cols-4">
-                        {Object.entries(metricConfig).map(([key, item], index) => (
-                            <MetricCard
-                                key={key}
-                                item={item}
-                                value={stats[key]}
-                                delay={index * 0.08}
-                            />
-                        ))}
+
                     </section>
                 )}
 
@@ -461,10 +468,6 @@ function Goals() {
                                 <Filter size={13} />
                                 Goal inventory
                             </div>
-                            <h2 className="text-2xl font-semibold text-white">Goals list</h2>
-                            <p className="mt-1 text-sm text-slate-400">
-                                {filteredGoals.length} visible record{filteredGoals.length === 1 ? "" : "s"} in the current filter.
-                            </p>
                         </div>
                         {role === "employee" && (
                         <div className="flex flex-wrap gap-2">
@@ -507,7 +510,7 @@ function Goals() {
                             <table className="min-w-full border-separate border-spacing-y-3">
                                 <thead>
                                     <tr>
-                                        {["Goal", "Thrust Area", "UOM", "Target", "Weight", "Status", ...(role !== "manager" ? ["Manager"] : []), ...(role === "admin" ? ["Employee"] : []), "Owner", "Actions"].map((label) => (
+                                        {["Goal", "Thrust Area", "UOM", "Target", "Weight", "Status", ...(role !== "manager" ? ["Manager"] : []), ...(role === "admin" ? ["Employee"] : []), "Primary Owner", "Actions"].map((label) => (
                                             <th key={label} className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-[0.24em] text-slate-500">
                                                 {label}
                                             </th>
@@ -537,7 +540,7 @@ function Goals() {
                                                             {goal.is_shared && (
                                                                 <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-[11px] font-medium text-cyan-200">
                                                                     <Users size={11} />
-                                                                    Shared KPI
+                                                                    Shared Goal
                                                                 </span>
                                                             )}
                                                         </div>
@@ -582,11 +585,13 @@ function Goals() {
                                                     </td>
                                                 )}
                                                 <td className="border-y border-white/10 bg-white/[0.03] px-4 py-4 text-sm text-slate-400">
-                                                    {goal.primary_owner_id || "N/A"}
+                                                    {goal.primary_owner_email || "N/A"}
                                                 </td>
                                                 <td className="rounded-r-2xl border-y border-r border-white/10 bg-white/[0.03] px-4 py-4">
                                                     <div className="flex flex-wrap gap-2">
-                                                        {role === "employee" && (goal.status === "draft" || goal.status === "rejected") && (
+                                                        {role === "employee" &&
+                                                            !goal.is_shared &&
+                                                            (goal.status === "draft" || goal.status === "rejected") && (
                                                             <>
                                                                 <button
                                                                     onClick={() => handleEdit(goal)}
@@ -652,7 +657,9 @@ function Goals() {
                         </div>
                     )}
 
-                    {role === "employee" && !loading && filteredGoals.length > 0 && (
+                    {role === "employee" &&
+                        !loading &&
+                        goals.some(goal => !goal.is_shared && goal.status === "draft") && (
                         <div className="mt-6 flex justify-end border-t border-white/10 pt-6">
                             <button
                                 onClick={handleGoalSubmission}
@@ -688,13 +695,11 @@ function Goals() {
                             <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-[28px] border border-white/10 bg-slate-950 p-6 shadow-[0_40px_120px_rgba(2,6,23,0.7)]">
                                 <div className="mb-6 flex items-start justify-between gap-4">
                                     <div>
-                                        <p className="text-xs uppercase tracking-[0.26em] text-cyan-300/80">Goal editor</p>
-                                        <h3 className="mt-2 text-2xl font-semibold text-white">
+
+                                        <h3 className="mt-2 text-md uppercase  font-semibold tracking-[0.26em] text-cyan-300/80">
                                             {editingGoalId ? "Update goal" : "Create goal"}
                                         </h3>
-                                        <p className="mt-1 text-sm text-slate-400">
-                                            {editingGoalId ? "Refine the existing goal details and save the update." : "Define a new goal without changing the existing API contract."}
-                                        </p>
+
                                     </div>
                                     <button
                                         onClick={resetForm}

@@ -220,29 +220,11 @@ export default function AssignKPI() {
                     transition={{ duration: 0.45 }}
                     className="mb-8 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.15),_transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.92))] p-8 shadow-[0_40px_120px_rgba(2,6,23,0.7)]"
                 >
-                    <div className="grid gap-8 xl:grid-cols-[1.35fr_0.85fr]">
-                        <div>
-                            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.28em] text-cyan-200">
-                                <Users size={14} />
-                                Manager KPI control
-                            </div>
-                            <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-white">Create shared KPIs and assign them across multiple employees from one dark workflow.</h1>
-                            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-                                The assign flow now follows the same interaction pattern as goals: focused entry, modal form, and dense team selection.
-                            </p>
-                            <div className="mt-8">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreateForm(true)}
-                                    className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/12 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/16"
-                                >
-                                    <Plus size={16} />
-                                    Create Shared KPI
-                                </button>
-                            </div>
-                        </div>
 
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+
+
+
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
                             <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-5">
                                 <p className="text-xs uppercase tracking-[0.28em] text-slate-500">Employee pool</p>
                                 <p className="mt-3 text-3xl font-semibold text-white">{loading ? "-" : metrics.employees}</p>
@@ -254,6 +236,16 @@ export default function AssignKPI() {
                                 <p className="mt-2 text-sm text-slate-400">Employees currently selected for the next shared KPI.</p>
                             </div>
                         </div>
+                        <div className="mt-8" >
+                            <button
+                                type="button"
+                                onClick={() => setShowCreateForm(true)}
+                                className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/12 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/16"
+                            >
+                                <Plus size={16} />
+                                Create Shared Goal
+                            </button>
+
                     </div>
                 </motion.section>
 

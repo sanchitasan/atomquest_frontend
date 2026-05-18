@@ -3,7 +3,6 @@ import {
     Award,
     BarChart3,
     CheckSquare,
-    FileText,
     Home,
     LogOut,
     Shield,
@@ -31,14 +30,14 @@ function MainLayout({ children }) {
                     { label: "Dashboard", path: "/dashboard", icon: Home },
                     { label: "Goals", path: "/goals", icon: Target },
                     { label: "Check-ins", path: "/checkins", icon: CheckSquare },
-                    { label: "Assigned KPIs", path: "/assigned-kpi", icon: Award },
+                    { label: "Assigned Goals", path: "/assigned-kpi", icon: Award },
+                    { label: "Share goal Overview", path: "/sharedgoal-overview", icon: Users },
                 ]
             case "manager":
                 return [
                     { label: "Dashboard", path: "/dashboard", icon: Home },
                     { label: "Goals", path: "/goals", icon: Target },
-                    { label: "Team View", path: "/team-view", icon: BarChart3 },
-                    { label: "Assign KPI", path: "/assign-kpi", icon: Users },
+                    { label: "Assign Goal", path: "/assign-kpi", icon: Users },
                 ]
             case "admin":
                 return [

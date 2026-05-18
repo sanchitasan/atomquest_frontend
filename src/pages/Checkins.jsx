@@ -151,18 +151,9 @@ function Checkins() {
         try {
             setGoalsLoading(true)
             const data = await getEmployeeGoals()
-            const approvedGoals = (Array.isArray(data) ? data : []).filter((goal) => {
-                if (goal.status !== "approved") {
-                    return false
-                }
-                // Shared KPI
-                if (goal.is_shared) {
-                    return (
-                        Number(goal.primary_owner_id) === currentUserId
-                    )
-                }
-                return true
-            })
+            const approvedGoals = (Array.isArray(data) ? data : []).filter(
+                (goal) => goal.status === "approved"
+            )
             setGoals(approvedGoals)
         } catch (error) {
             console.log(error)
@@ -182,18 +173,23 @@ function Checkins() {
 
     const handleSubmit = async (event) => {
         event.preventDefault()
+
         const selectedGoal = goals.find(
             (goal) => Number(goal.id) === Number(formData.goal_id)
         )
 
         const alreadyExists = checkins.some((item) => {
+
             // Shared KPI validation
             if (
                 selectedGoal?.is_shared &&
+                item.shared_goal_id &&
+                selectedGoal.shared_goal_id &&
                 item.shared_goal_id === selectedGoal.shared_goal_id
             ) {
                 return item.quarter === formData.quarter
             }
+
             // Normal goal validation
             return (
                 Number(item.goal_id) === Number(formData.goal_id)
@@ -201,6 +197,7 @@ function Checkins() {
                 item.quarter === formData.quarter
             )
         })
+
         if (alreadyExists) {
             toast(
                 "Check-in already submitted for this quarter",
@@ -209,9 +206,11 @@ function Checkins() {
 
             return
         }
+
         setSubmitting(true)
 
         try {
+
             await createCheckIn({
                 quarter: formData.quarter,
                 planned_value: Number(formData.planned_value),
@@ -221,6 +220,7 @@ function Checkins() {
             })
 
             toast("Check-in submitted")
+
             setFormData({
                 quarter: "",
                 planned_value: "",
@@ -228,11 +228,27 @@ function Checkins() {
                 employee_comment: "",
                 goal_id: "",
             })
+
             setShowCreateForm(false)
-            fetchCheckIns()
+
+            const updatedCheckins = await getCheckIns()
+
+            setCheckins(
+                Array.isArray(updatedCheckins)
+                    ? updatedCheckins
+                    : []
+            )
+
         } catch (error) {
+
             console.log(error)
-            toast(error.response?.data?.detail || "Check-in submission failed", "#ef4444")
+
+            toast(
+                error.response?.data?.detail ||
+                "Check-in submission failed",
+                "#ef4444"
+            )
+
         } finally {
             setSubmitting(false)
         }
@@ -337,75 +353,95 @@ function Checkins() {
                             </p>
                         </div>
                     ) : (
-                        <div className="space-y-4">
+                        <div className="relative ml-4 border-l border-cyan-400/20 pl-8">
+
                             {checkins.map((checkin, index) => {
+
                                 const statusConfig = getStatusConfig(checkin.status)
-                                const progressScore = Number(checkin.progress_score ?? 0)
-                                const progressAccent = getProgressAccent(progressScore)
+
+                                const progressScore = Number(
+                                    checkin.progress_score ?? 0
+                                )
+
+                                const progressAccent =
+                                    getProgressAccent(progressScore)
 
                                 return (
-                                    <motion.article
+
+                                    <motion.div
                                         key={checkin.id}
-                                        initial={{ opacity: 0, y: 14 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.28, delay: index * 0.04 }}
-                                        className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.82),rgba(15,23,42,0.62))] p-5"
-                                        data-testid="checkin-row"
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{
+                                            duration: 0.25,
+                                            delay: index * 0.03,
+                                        }}
+                                        className="relative mb-6"
                                     >
-                                        <div className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
-                                            <div className="space-y-4">
-                                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                                    <div className="flex min-w-0 items-start gap-3">
-                                                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
-                                                            <Calendar size={18} className="text-cyan-300" />
-                                                        </div>
-                                                        <div className="min-w-0">
-                                                            <h3 className="text-lg font-semibold text-white">{checkin.quarter}</h3>
-                                                            <div className="mt-1 flex items-center gap-2">
-                                                                <p className="truncate text-sm text-slate-400">
-                                                                    {checkin.goal_title}
-                                                                </p>
-                                                                {checkin.is_shared && (
-                                                                    <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-cyan-200">
-                                                                        Shared KPI
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
+
+                                        {/* TIMELINE DOT */}
+
+                                        <div
+                                            className="absolute -left-[42px] top-6 h-4 w-4 rounded-full border-4 border-slate-950"
+                                            style={{
+                                                background: progressAccent,
+                                            }}
+                                        />
+
+                                        {/* CARD */}
+
+                                        <div className="rounded-3xl border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.78),rgba(15,23,42,0.58))] p-5 backdrop-blur-xl">
+
+                                            {/* TOP ROW */}
+
+                                            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
+                                                <div>
+
+                                                    <div className="flex flex-wrap items-center gap-2">
+
+                                                        <h3 className="text-lg font-semibold text-white">
+                                                            {checkin.goal_title}
+                                                        </h3>
+
+                                                        {checkin.is_shared && (
+                                                            <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-cyan-200">
+                                        Shared KPI
+                                    </span>
+                                                        )}
+
+                                                        {checkin.primary_owner_email && (
+                                                            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-emerald-200">
+                                        Owner: {checkin.primary_owner_email}
+                                    </span>
+                                                        )}
                                                     </div>
-                                                    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${statusConfig.badge}`}>
-                                                        {statusConfig.label}
-                                                    </span>
+
+                                                    <p className="mt-2 text-sm text-slate-400">
+                                                        {checkin.quarter}
+                                                    </p>
                                                 </div>
 
-                                                <div className="grid gap-4 sm:grid-cols-3">
-                                                    <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
-                                                        <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Planned</p>
-                                                        <p className="mt-2 text-lg font-semibold text-white">{checkin.planned_value}</p>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
-                                                        <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Actual</p>
-                                                        <p className="mt-2 text-lg font-semibold text-white">{checkin.actual_value}</p>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
-                                                        <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Progress</p>
-                                                        <div className="mt-2 flex items-center gap-2">
-                                                            <p className="text-lg font-semibold text-white">
-                                                                {progressScore.toFixed(1)}%
-                                                            </p>
-                                                            {progressScore > 100 && (
-                                                                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-emerald-200">
-                                                                   Overachieved
-                                                                 </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
+                                                <div className="flex items-center gap-3">
+
+                            <span
+                                className={`rounded-full border px-3 py-1 text-xs font-medium ${statusConfig.badge}`}
+                            >
+                                {statusConfig.label}
+                            </span>
+
+                                                    <span className="text-lg font-semibold text-white">
+                                {progressScore.toFixed(1)}%
+                            </span>
                                                 </div>
                                             </div>
 
-                                            <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-                                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Progress Summary</p>
-                                                <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-800">
+                                            {/* PROGRESS */}
+
+                                            <div className="mt-5">
+
+                                                <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+
                                                     <div
                                                         className="h-full rounded-full transition-all duration-500"
                                                         style={{
@@ -414,15 +450,60 @@ function Checkins() {
                                                         }}
                                                     />
                                                 </div>
-                                                <div className="mt-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4">
-                                                    <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Comment</p>
-                                                    <p className="mt-2 text-sm leading-relaxed text-slate-300">
-                                                        {checkin.employee_comment || "No comment added."}
+                                            </div>
+
+                                            {/* METADATA */}
+
+                                            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+
+                                                <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-3">
+                                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                                                        Planned
+                                                    </p>
+
+                                                    <p className="mt-1 text-base font-semibold text-white">
+                                                        {checkin.planned_value}
+                                                    </p>
+                                                </div>
+
+                                                <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-3">
+                                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                                                        Actual
+                                                    </p>
+
+                                                    <p className="mt-1 text-base font-semibold text-white">
+                                                        {checkin.actual_value}
+                                                    </p>
+                                                </div>
+
+                                                <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-3">
+                                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                                                        Progress
+                                                    </p>
+
+                                                    <p className="mt-1 text-base font-semibold text-white">
+                                                        {progressScore.toFixed(1)}%
                                                     </p>
                                                 </div>
                                             </div>
+
+                                            {/* COMMENT */}
+
+                                            {checkin.employee_comment && (
+
+                                                <div className="mt-5 rounded-2xl border border-white/5 bg-black/20 p-4">
+
+                                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
+                                                        Employee Notes
+                                                    </p>
+
+                                                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-slate-300">
+                                                        {checkin.employee_comment}
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
-                                    </motion.article>
+                                    </motion.div>
                                 )
                             })}
                         </div>

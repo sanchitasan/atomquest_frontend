@@ -20,10 +20,10 @@ export const getDashboardStats = async () => {
     return response.data
 }
 
-export const downloadAchievementReport = async () => {
+export const downloadCSVReport = async () => {
 
     const response = await axios.get(
-        `${BASE_URL}/achievement-report`,
+        `${BASE_URL}/reports/export/csv`,
         {
             ...getAuthHeaders(),
             responseType: "blob"
@@ -40,7 +40,38 @@ export const downloadAchievementReport = async () => {
 
     link.setAttribute(
         "download",
-        "achievement_report.csv"
+        "governance_report.csv"
+    )
+
+    document.body.appendChild(link)
+
+    link.click()
+
+    link.remove()
+}
+
+
+export const downloadExcelReport = async () => {
+
+    const response = await axios.get(
+        `${BASE_URL}/reports/export/excel`,
+        {
+            ...getAuthHeaders(),
+            responseType: "blob"
+        }
+    )
+
+    const url = window.URL.createObjectURL(
+        new Blob([response.data])
+    )
+
+    const link = document.createElement("a")
+
+    link.href = url
+
+    link.setAttribute(
+        "download",
+        "governance_report.xlsx"
     )
 
     document.body.appendChild(link)

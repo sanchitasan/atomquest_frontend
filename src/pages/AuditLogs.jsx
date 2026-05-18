@@ -140,8 +140,7 @@ function AuditLogs() {
                     <div className="mb-6 flex items-start justify-between gap-4">
                         <div>
                             <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/80">Governance filters</p>
-                            <h2 className="mt-2 text-2xl font-semibold text-white">Refine the audit stream</h2>
-                        </div>
+                            </div>
                         <button
                             type="button"
                             onClick={fetchLogs}
@@ -192,13 +191,11 @@ function AuditLogs() {
 
                 <section className="rounded-3xl border border-white/10 bg-slate-950/50 p-6 shadow-[0_32px_120px_rgba(2,6,23,0.55)] backdrop-blur-xl">
                     <div className="mb-6 flex items-start justify-between gap-4">
-                        <div>
+
                             <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/80">Audit stream</p>
-                            <h2 className="mt-2 text-2xl font-semibold text-white">Governance activity ledger</h2>
-                        </div>
+
                         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-right">
                             <p className="text-sm font-medium text-white">{filteredLogs.length} entries</p>
-                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Visible records</p>
                         </div>
                     </div>
 
@@ -247,9 +244,7 @@ function AuditLogs() {
                                                 <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${getRoleTone(log.role)}`}>
                                                     {log.role || "Unknown role"}
                                                 </span>
-                                                <span className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/60 px-3 py-1 text-xs font-medium text-slate-300">
-                                                    {formatEntity(log)}
-                                                </span>
+
                                             </div>
 
                                             <div className="mt-4 grid gap-4 lg:grid-cols-3">
