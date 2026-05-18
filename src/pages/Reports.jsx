@@ -1,285 +1,346 @@
-import { useEffect, useState } from "react"
-
+import { useEffect, useMemo, useState } from "react"
+import { motion } from "framer-motion"
 import MainLayout from "../layouts/MainLayout"
-
+import { getAuditLogs } from "../api/auditApi"
+import { getApiErrorMessage } from "../api/config"
 import {
+    downloadAchievementReport,
     getDashboardStats,
-    getCompletionDashboard,
-    getGovernanceAudit,
-    downloadAchievementReport
 } from "../api/reportApi"
+import {
+    Activity,
+    AlertCircle,
+    Calendar,
+    CheckCircle2,
+    Clock3,
+    Download,
+    FileText,
+    Shield,
+    Users,
+} from "lucide-react"
+
+function formatTimestamp(timestamp) {
+    if (!timestamp) return "No timestamp"
+
+    return new Date(timestamp).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+    })
+}
+
+function getActionTone(action) {
+    switch (action?.toLowerCase()) {
+        case "approve":
+            return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+        case "reject":
+            return "border-amber-400/20 bg-amber-400/10 text-amber-200"
+        case "create":
+            return "border-cyan-400/20 bg-cyan-400/10 text-cyan-200"
+        case "update":
+            return "border-violet-400/20 bg-violet-400/10 text-violet-200"
+        default:
+            return "border-white/10 bg-white/[0.04] text-slate-300"
+    }
+}
+
+function StatCard({ title, value, note, icon: Icon, accent, delay = 0 }) {
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay }}
+            className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-[0_24px_80px_rgba(2,6,23,0.45)] backdrop-blur-xl"
+        >
+            <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }} />
+            <div className="mb-4 flex items-start justify-between">
+                <div className="rounded-2xl border border-white/10 p-3" style={{ backgroundColor: `${accent}1a` }}>
+                    <Icon size={18} style={{ color: accent }} />
+                </div>
+                <span className="rounded-full border border-white/10 bg-slate-950/50 px-2.5 py-1 text-[11px] uppercase tracking-[0.24em] text-slate-400">Live</span>
+            </div>
+            <p className="text-sm text-slate-400">{title}</p>
+            <p className="mt-2 text-3xl font-semibold text-white">{value}</p>
+            <p className="mt-3 text-sm text-slate-500">{note}</p>
+        </motion.div>
+    )
+}
+
+function SectionCard({ eyebrow, title, children, action }) {
+    return (
+        <section className="rounded-3xl border border-white/10 bg-slate-950/50 p-6 shadow-[0_32px_120px_rgba(2,6,23,0.55)] backdrop-blur-xl">
+            <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                    <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/80">{eyebrow}</p>
+                    <h2 className="mt-2 text-2xl font-semibold text-white">{title}</h2>
+                </div>
+                {action}
+            </div>
+            {children}
+        </section>
+    )
+}
 
 function Reports() {
-
     const [dashboardStats, setDashboardStats] = useState(null)
-
-    const [completionData, setCompletionData] = useState(null)
-
     const [governanceLogs, setGovernanceLogs] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState("")
+    const [exporting, setExporting] = useState(false)
 
     useEffect(() => {
-
-        fetchDashboardStats()
-
-        fetchCompletionDashboard()
-
-        fetchGovernanceAudit()
-
+        fetchReports()
     }, [])
 
-    const fetchDashboardStats = async () => {
-
+    async function fetchReports() {
         try {
+            setLoading(true)
+            setError("")
 
-            const data = await getDashboardStats()
+            const [stats, governance] = await Promise.all([
+                getDashboardStats(),
+                getAuditLogs(),
+            ])
 
-            setDashboardStats(data)
-
-        } catch (error) {
-
-            console.log(error)
+            setDashboardStats(stats)
+            setGovernanceLogs(Array.isArray(governance) ? governance : [])
+        } catch (fetchError) {
+            console.log(fetchError)
+            setError(getApiErrorMessage(fetchError, "Failed to load governance reports"))
+        } finally {
+            setLoading(false)
         }
     }
 
-    const fetchCompletionDashboard = async () => {
-
+    async function handleExport() {
         try {
-
-            const data = await getCompletionDashboard()
-
-            setCompletionData(data)        } catch (error) {
-
-            console.log(error)
+            setExporting(true)
+            await downloadAchievementReport()
+        } catch (exportError) {
+            console.log(exportError)
+            setError(getApiErrorMessage(exportError, "Failed to export achievement report"))
+        } finally {
+            setExporting(false)
         }
     }
 
-    const fetchGovernanceAudit = async () => {
+    const topGovernanceLogs = useMemo(
+        () =>
+            [...governanceLogs]
+                .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
+                .slice(0, 6),
+        [governanceLogs]
+    )
 
-        try {
+    const overviewStats = [
+        {
+            title: "Total Goals",
+            value: dashboardStats?.total_goals || 0,
+            note: "Overall tracked goals across the current reporting window.",
+            icon: FileText,
+            accent: "#60a5fa",
+        },
+        {
+            title: "Approved Goals",
+            value: dashboardStats?.approved_goals || 0,
+            note: "Goals cleared through the current review workflow.",
+            icon: CheckCircle2,
+            accent: "#34d399",
+        },
+        {
+            title: "Pending Goals",
+            value: dashboardStats?.pending_goals || 0,
+            note: "Items still waiting on governance or manager action.",
+            icon: Clock3,
+            accent: "#fbbf24",
+        },
+        {
+            title: "Average Progress",
+            value: `${Math.round(dashboardStats?.average_progress || 0)}%`,
+            note: "Mean progress score calculated from tracked goals.",
+            icon: Activity,
+            accent: "#a78bfa",
+        },
+    ]
 
-            const data = await getGovernanceAudit()
+    const completionStats = [
+        {
+            title: "Total Employees",
+            value: dashboardStats?.total_employees || 0,
+            note: "Employees currently included in the completion dashboard.",
+            icon: Users,
+            accent: "#22d3ee",
+        },
 
-            setGovernanceLogs(data)
+        {
+            title: "Managers",
+            value: dashboardStats?.total_managers || 0,
+            note: "Managers represented in the current governance cycle.",
+            icon: Shield,
+            accent: "#60a5fa",
+        },
+        {
+            title: "Rejected Goals",
+            value: dashboardStats?.rejected_goals || 0,
+            note: "Goals sent back during governance review.",
+            icon: Clock3,
+            accent: "#fb7185",
+        },
+    ]
 
-        } catch (error) {
-
-            console.log(error)
-        }
-    }
+    const latestAudit = topGovernanceLogs[0]
 
     return (
-
         <MainLayout>
+            <div className="relative overflow-hidden">
+                <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+                    <div className="absolute left-[-8rem] top-[-5rem] h-72 w-72 rounded-full bg-cyan-500/12 blur-3xl" />
+                    <div className="absolute right-[-6rem] top-16 h-80 w-80 rounded-full bg-violet-500/12 blur-3xl" />
+                    <div className="absolute bottom-[-8rem] left-1/3 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
+                </div>
 
-            <div className="flex justify-between items-center mb-8">
-
-                <h1 className="text-4xl font-bold">
-                    Reports & Governance
-                </h1>
-
-                <button
-                    onClick={downloadAchievementReport}
-                    className="bg-black text-white px-6 py-3 rounded"
+                <motion.section
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.45 }}
+                    className="mb-8 rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.15),_transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.92))] p-8 shadow-[0_40px_120px_rgba(2,6,23,0.7)]"
                 >
-                    Export Achievement Report
-                </button>
+                    <div className="grid gap-8 xl:grid-cols-[1.35fr_0.85fr]">
+                        <div>
+                            <h1 className="max-w-3xl text-4xl font-semibold leading-tight text-white">
+                                Governance Reports
+                            </h1>
+                            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
+                                Monitor delivery, check-in completion, and governance activity from a single admin reporting surface aligned with the rest of the platform.
+                            </p>
+                            <div className="mt-8 flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handleExport}
+                                    disabled={exporting}
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/12 px-5 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/16 disabled:opacity-60"
+                                >
+                                    <Download size={16} />
+                                    {exporting ? "Exporting..." : "Export Achievement Report"}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={fetchReports}
+                                    className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/[0.06]"
+                                >
+                                    <Activity size={16} />
+                                    Refresh Data
+                                </button>
+                            </div>
+                        </div>
 
-            </div>
-
-            <div className="grid grid-cols-4 gap-6 mb-10">
-
-                <div className="bg-white p-6 rounded-xl shadow">
-
-                    <h3 className="text-gray-500 text-sm mb-2">
-                        Total Goals
-                    </h3>
-
-                    <p className="text-3xl font-bold">
-                        {dashboardStats?.total_goals || 0}
-                    </p>
-
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow">
-                    <h3 className="text-gray-500 text-sm mb-2">
-                        Approved Goals
-                    </h3>
-
-                    <p className="text-3xl font-bold text-green-600">
-                        {dashboardStats?.approved_goals || 0}
-                    </p>
-
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow">
-
-                    <h3 className="text-gray-500 text-sm mb-2">
-                        Pending Goals
-                    </h3>
-
-                    <p className="text-3xl font-bold text-yellow-600">
-                        {dashboardStats?.pending_goals || 0}
-                    </p>
-
-                </div>
-
-                <div className="bg-white p-6 rounded-xl shadow">
-
-                    <h3 className="text-gray-500 text-sm mb-2">
-                        Average Progress
-                    </h3>
-
-                    <p className="text-3xl font-bold text-blue-600">
-                        {Math.round(dashboardStats?.average_progress || 0)}%
-                    </p>
-
-                </div>
-
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow mb-10">
-
-                <h2 className="text-2xl font-bold mb-6">
-                    Completion Dashboard
-                </h2>
-
-                <div className="grid grid-cols-4 gap-6">
-
-                    <div className="border p-6 rounded-xl">
-
-                        <h3 className="text-gray-500 mb-2">
-                            Total Employees
-                        </h3>
-                        <p className="text-3xl font-bold">
-                            {completionData?.total_employees || 0}
-                        </p>
 
                     </div>
+                </motion.section>
 
-                    <div className="border p-6 rounded-xl">
+                {error ? (
+                    <section className="mb-8 rounded-3xl border border-rose-400/20 bg-rose-400/10 p-5 text-rose-100 shadow-[0_24px_80px_rgba(2,6,23,0.35)]">
+                        <div className="flex items-start gap-3">
+                            <AlertCircle size={18} className="mt-0.5 flex-none" />
+                            <p className="text-sm leading-6">{error}</p>
+                        </div>
+                    </section>
+                ) : null}
 
-                        <h3 className="text-gray-500 mb-2">
-                            Completed CheckIns
-                        </h3>
+                <section className="mb-8 grid gap-5 xl:grid-cols-4">
+                    {overviewStats.map((item, index) => (
+                        <StatCard key={item.title} {...item} delay={index * 0.08} />
+                    ))}
+                </section>
 
-                        <p className="text-3xl font-bold text-green-600">
-                            {
-                                completionData?.employees_completed_checkins || 0
-                            }
-                        </p>
+                <SectionCard eyebrow="Delivery pulse" title="Completion Dashboard">
+                    {loading ? (
+                        <div className="grid gap-5 xl:grid-cols-4">
+                            {completionStats.map((item) => (
+                                <div key={item.title} className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+                                    <div className="h-5 w-24 animate-pulse rounded bg-white/10" />
+                                    <div className="mt-4 h-10 w-16 animate-pulse rounded bg-white/10" />
+                                    <div className="mt-3 h-4 w-full animate-pulse rounded bg-white/10" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="grid gap-5 xl:grid-cols-3">
+                            {completionStats.map((item, index) => (
+                                <StatCard key={item.title} {...item} delay={index * 0.08} />
+                            ))}
+                        </div>
+                    )}
+                </SectionCard>
 
-                    </div>
+                <div className="mt-8 grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
+                    <SectionCard eyebrow="Reporting snapshot" title="Performance Summary">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-5">
+                                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Approval Rate</p>
+                                <p className="mt-3 text-3xl font-semibold text-white">
+                                    {dashboardStats?.total_goals ? `${Math.round(((dashboardStats.approved_goals || 0) / dashboardStats.total_goals) * 100)}%` : "0%"}
+                                </p>
+                                <p className="mt-2 text-sm text-slate-400">Approved goals compared with the current total goal count.</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-5">
+                                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Check-in Coverage</p>
+                                <p className="mt-3 text-3xl font-semibold text-white">
+                                    {dashboardStats?.total_employees ? `${Math.round(((dashboardStats.employees_completed_checkins || 0) / dashboardStats.total_employees) * 100)}%` : "0%"}
+                                </p>
+                                <p className="mt-2 text-sm text-slate-400">Employees with completed check-ins across the tracked workforce.</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-5">
+                                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Open Review Load</p>
+                                <p className="mt-3 text-3xl font-semibold text-white">{dashboardStats?.pending_goals || 0}</p>
+                                <p className="mt-2 text-sm text-slate-400">Pending approvals still moving through the governance process.</p>
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-5">
+                                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Manager Span</p>
+                                <p className="mt-3 text-3xl font-semibold text-white">{dashboardStats?.total_managers || 0}</p>
+                                <p className="mt-2 text-sm text-slate-400">Managers currently represented in reporting and completion data.</p>
+                            </div>
+                        </div>
+                    </SectionCard>
 
-                    <div className="border p-6 rounded-xl">
-
-                        <h3 className="text-gray-500 mb-2">
-                            Managers
-                        </h3>
-
-                        <p className="text-3xl font-bold text-blue-600">
-                            {completionData?.total_managers || 0}
-                        </p>
-
-                    </div>
-
-                    <div className="border p-6 rounded-xl">
-
-                        <h3 className="text-gray-500 mb-2">
-                            Pending Approvals
-                        </h3>
-
-                        <p className="text-3xl font-bold text-red-500">
-                            {completionData?.pending_goals || 0}
-                        </p>
-
-                    </div>
-
+                    <SectionCard eyebrow="Audit preview" title="Governance Audit Trail">
+                        {loading ? (
+                            <div className="space-y-3">
+                                {Array.from({ length: 4 }).map((_, index) => (
+                                    <div key={index} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                        <div className="h-4 w-32 animate-pulse rounded bg-white/10" />
+                                        <div className="mt-3 h-4 w-full animate-pulse rounded bg-white/10" />
+                                        <div className="mt-2 h-4 w-4/5 animate-pulse rounded bg-white/10" />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : topGovernanceLogs.length === 0 ? (
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
+                                <p className="text-base text-white">No governance audit entries available.</p>
+                                <p className="mt-2 text-sm text-slate-400">The audit report endpoint has not returned any rows yet.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {topGovernanceLogs.map((log) => (
+                                    <article key={log.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${getActionTone(log.action)}`}>
+                                                {log.action || "Unknown"}
+                                            </span>
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-slate-950/50 px-3 py-1 text-xs text-slate-300">
+                                                <Calendar size={12} />
+                                                {formatTimestamp(log.timestamp)}
+                                            </span>
+                                        </div>
+                                        <p className="mt-3 text-sm font-medium text-white">{log.performed_by || "Unknown actor"}</p>
+                                        <p className="mt-1 text-sm text-slate-400">{log.entity || "Unknown entity"}</p>
+                                        <p className="mt-3 text-sm leading-6 text-slate-300">{log.details || "No additional detail provided."}</p>
+                                    </article>
+                                ))}
+                            </div>
+                        )}
+                    </SectionCard>
                 </div>
-
             </div>
-
-            <div className="bg-white p-6 rounded-xl shadow">
-                <h2 className="text-2xl font-bold mb-6">
-                    Governance Audit Trail
-                </h2>
-
-                <div className="overflow-x-auto">
-
-                    <table className="w-full">
-
-                        <thead>
-
-                        <tr className="border-b bg-gray-100">
-
-                            <th className="text-left py-3 px-3">
-                                Timestamp
-                            </th>
-
-                            <th className="text-left py-3 px-3">
-                                Performed By
-                            </th>
-
-                            <th className="text-left py-3 px-3">
-                                Action
-                            </th>
-
-                            <th className="text-left py-3 px-3">
-                                Entity
-                            </th>
-
-                            <th className="text-left py-3 px-3">
-                                Details
-                            </th>
-
-                        </tr>
-
-                        </thead>
-
-                        <tbody>
-
-                        {governanceLogs.map((log) => (
-
-                            <tr
-                                key={log.id}
-                                className="border-b"
-                            >
-
-                                <td className="py-4 px-3">
-                                    {
-                                        new Date(
-                                            log.timestamp
-                                        ).toLocaleString()
-                                    }
-                                </td>
-
-                                <td className="py-4 px-3">
-                                    {log.performed_by}
-                                </td>
-
-                                <td className="py-4 px-3 font-medium">
-                                    {log.action}
-                                </td>
-
-                                <td className="py-4 px-3">
-                                    {log.entity}
-                                </td>
-
-                                <td className="py-4 px-3 max-w-md whitespace-pre-wrap">
-                                    {log.details}
-                                </td>
-
-                            </tr>
-
-                        ))}
-
-                        </tbody>
-
-                    </table>
-
-                </div>
-
-            </div>
-
         </MainLayout>
     )
 }

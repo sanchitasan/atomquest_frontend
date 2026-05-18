@@ -39,7 +39,6 @@ function MainLayout({ children }) {
                     { label: "Goals", path: "/goals", icon: Target },
                     { label: "Team View", path: "/team-view", icon: BarChart3 },
                     { label: "Assign KPI", path: "/assign-kpi", icon: Users },
-                    { label: "Reports", path: "/reports", icon: FileText },
                 ]
             case "admin":
                 return [

@@ -1,8 +1,17 @@
-// src/pages/AuditLogs.jsx - COMPLETE MODERNIZED VERSION
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { motion } from "framer-motion"
 import MainLayout from "../layouts/MainLayout"
 import { getAuditLogs } from "../api/auditApi"
-import { History, Calendar, User, Shield, FileText, ArrowRight } from "lucide-react"
+import { getApiErrorMessage } from "../api/config"
+import {
+    AlertCircle,
+    Calendar,
+    FileSearch,
+    Filter,
+    RefreshCcw,
+    Shield,
+    User,
+} from "lucide-react"
 
 function parseSnapshot(value) {
     if (!value || typeof value !== "string") return null
@@ -24,20 +33,20 @@ function parseSnapshot(value) {
 }
 
 function formatCellValue(value) {
-    if (value == null || value === "") return "—"
+    if (value == null || value === "") return "No value"
 
     const snapshot = parseSnapshot(value)
     if (snapshot) {
         return Object.entries(snapshot)
             .map(([key, val]) => `${key}: ${val}`)
-            .join(", ")
+            .join(" | ")
     }
 
-    return value
+    return String(value)
 }
 
 function formatTimestamp(timestamp) {
-    if (!timestamp) return "—"
+    if (!timestamp) return "No timestamp"
     const date = new Date(timestamp)
     return date.toLocaleString(undefined, {
         dateStyle: "medium",
@@ -46,108 +55,47 @@ function formatTimestamp(timestamp) {
 }
 
 function formatEntity(log) {
-    if (!log.entity) return "—"
+    if (!log.entity) return "Unknown entity"
     if (log.entity_id != null) return `${log.entity} #${log.entity_id}`
     return log.entity
 }
 
-function getActionConfig(action) {
+function getActionTone(action) {
     switch (action?.toLowerCase()) {
         case "create":
-            return {
-                color: "text-green-600",
-                bg: "bg-green-100",
-                border: "border-green-200",
-                label: "✓ Created",
-                icon: "+"
-            }
+            return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
         case "update":
-            return {
-                color: "text-blue-600",
-                bg: "bg-blue-100",
-                border: "border-blue-200",
-                label: "✎ Updated",
-                icon: "~"
-            }
+            return "border-cyan-400/20 bg-cyan-400/10 text-cyan-200"
         case "delete":
-            return {
-                color: "text-red-600",
-                bg: "bg-red-100",
-                border: "border-red-200",
-                label: "✕ Deleted",
-                icon: "−"
-            }
+            return "border-rose-400/20 bg-rose-400/10 text-rose-200"
         case "approve":
-            return {
-                color: "text-emerald-600",
-                bg: "bg-emerald-100",
-                border: "border-emerald-200",
-                label: "✓ Approved",
-                icon: "✓"
-            }
+            return "border-green-400/20 bg-green-400/10 text-green-200"
         case "reject":
-            return {
-                color: "text-orange-600",
-                bg: "bg-orange-100",
-                border: "border-orange-200",
-                label: "✗ Rejected",
-                icon: "✗"
-            }
+            return "border-amber-400/20 bg-amber-400/10 text-amber-200"
         case "submit":
-            return {
-                color: "text-purple-600",
-                bg: "bg-purple-100",
-                border: "border-purple-200",
-                label: "→ Submitted",
-                icon: "→"
-            }
+            return "border-violet-400/20 bg-violet-400/10 text-violet-200"
         default:
-            return {
-                color: "text-gray-600",
-                bg: "bg-gray-100",
-                border: "border-gray-200",
-                label: action || "Unknown",
-                icon: "•"
-            }
+            return "border-white/10 bg-white/[0.04] text-slate-300"
     }
 }
 
-function getRoleConfig(role) {
+function getRoleTone(role) {
     switch (role?.toLowerCase()) {
         case "admin":
-            return {
-                color: "text-red-600",
-                bg: "bg-red-100",
-                border: "border-red-200",
-                label: "🔐 Admin"
-            }
+            return "border-rose-400/20 bg-rose-400/10 text-rose-200"
         case "manager":
-            return {
-                color: "text-blue-600",
-                bg: "bg-blue-100",
-                border: "border-blue-200",
-                label: "👔 Manager"
-            }
+            return "border-cyan-400/20 bg-cyan-400/10 text-cyan-200"
         case "employee":
-            return {
-                color: "text-green-600",
-                bg: "bg-green-100",
-                border: "border-green-200",
-                label: "👤 Employee"
-            }
+            return "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
         default:
-            return {
-                color: "text-gray-600",
-                bg: "bg-gray-100",
-                border: "border-gray-200",
-                label: role || "Unknown"
-            }
+            return "border-white/10 bg-white/[0.04] text-slate-300"
     }
 }
 
 function AuditLogs() {
     const [logs, setLogs] = useState([])
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState("")
     const [filterAction, setFilterAction] = useState("")
     const [filterRole, setFilterRole] = useState("")
 
@@ -155,200 +103,201 @@ function AuditLogs() {
         fetchLogs()
     }, [])
 
-    const fetchLogs = async () => {
+    async function fetchLogs() {
         try {
             setLoading(true)
+            setError("")
             const data = await getAuditLogs()
             setLogs(Array.isArray(data) ? data : [])
-        } catch (error) {
-            console.log(error)
-            const errorMsg = document.createElement('div')
-            errorMsg.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50'
-            errorMsg.textContent = 'Failed to load audit logs'
-            document.body.appendChild(errorMsg)
-            setTimeout(() => errorMsg.remove(), 3000)
+        } catch (fetchError) {
+            console.log(fetchError)
+            setLogs([])
+            setError(getApiErrorMessage(fetchError, "Failed to load governance audit logs"))
         } finally {
             setLoading(false)
         }
     }
 
-    const filteredLogs = logs.filter(log => {
-        const actionMatch = !filterAction || log.action?.toLowerCase().includes(filterAction.toLowerCase())
-        const roleMatch = !filterRole || log.role?.toLowerCase().includes(filterRole.toLowerCase())
-        return actionMatch && roleMatch
-    })
+    const filteredLogs = useMemo(
+        () =>
+            logs.filter((log) => {
+                const actionMatch = !filterAction || log.action?.toLowerCase().includes(filterAction.toLowerCase())
+                const roleMatch = !filterRole || log.role?.toLowerCase().includes(filterRole.toLowerCase())
+                return actionMatch && roleMatch
+            }),
+        [logs, filterAction, filterRole]
+    )
 
     return (
         <MainLayout>
-            {/* Header */}
-            <div className="mb-8">
-                <h1 className="text-4xl font-bold text-gray-800 mb-2" data-testid="auditlogs-title">
-                    Audit Logs
-                </h1>
-                <p className="text-gray-600">System activity and change tracking</p>
-            </div>
-
-            {/* Filters */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 mb-8 border border-gray-200">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-                        <FileText className="text-white" size={20} />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-800">Filters</h2>
+            <div className="relative overflow-hidden">
+                <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+                    <div className="absolute left-[-8rem] top-[-5rem] h-72 w-72 rounded-full bg-cyan-500/12 blur-3xl" />
+                    <div className="absolute right-[-6rem] top-16 h-80 w-80 rounded-full bg-violet-500/12 blur-3xl" />
+                    <div className="absolute bottom-[-8rem] left-1/3 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
                 </div>
-
-                <div className="gap-6">
-
-
-                    {/* Role Filter */}
-                    <div>
-                        <label className="block text-gray-700 text-sm font-semibold mb-2">Filter by Role</label>
-                        <input
-                            type="text"
-                            placeholder="e.g., admin, manager, employee..."
-                            className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                            value={filterRole}
-                            onChange={(e) => setFilterRole(e.target.value)}
-                            data-testid="auditlog-role-filter"
-                        />
-                    </div>
-                </div>
-
-                {(filterAction || filterRole) && (
-                    <button
-                        onClick={() => {
-                            setFilterAction("")
-                            setFilterRole("")
-                        }}
-                        className="mt-4 px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg text-sm font-semibold transition-all"
-                    >
-                        Clear Filters
-                    </button>
-                )}
-            </div>
-
-            {/* Audit Logs Table */}
-            <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200">
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
-                            <History className="text-white" size={20} />
-                        </div>
+                <section className="mb-8 rounded-3xl border border-white/10 bg-slate-950/50 p-6 shadow-[0_32px_120px_rgba(2,6,23,0.55)] backdrop-blur-xl">
+                    <div className="mb-6 flex items-start justify-between gap-4">
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-800">Activity Log</h2>
-                            <p className="text-sm text-gray-600">{filteredLogs.length} entries</p>
+                            <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/80">Governance filters</p>
+                            <h2 className="mt-2 text-2xl font-semibold text-white">Refine the audit stream</h2>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={fetchLogs}
+                            className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/12 px-4 py-2.5 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/16"
+                        >
+                            <RefreshCcw size={15} />
+                            Refresh
+                        </button>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+                        <label>
+                            <span className="mb-2 block text-xs font-medium uppercase tracking-[0.24em] text-slate-500">Action</span>
+                            <input
+                                type="text"
+                                placeholder="create, approve, reject..."
+                                value={filterAction}
+                                onChange={(event) => setFilterAction(event.target.value)}
+                                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
+                            />
+                        </label>
+                        <label>
+                            <span className="mb-2 block text-xs font-medium uppercase tracking-[0.24em] text-slate-500">Role</span>
+                            <input
+                                type="text"
+                                placeholder="admin, manager, employee..."
+                                value={filterRole}
+                                onChange={(event) => setFilterRole(event.target.value)}
+                                className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
+                                data-testid="auditlog-role-filter"
+                            />
+                        </label>
+                        <div className="flex items-end">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFilterAction("")
+                                    setFilterRole("")
+                                }}
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-white/[0.06]"
+                            >
+                                <Filter size={15} />
+                                Clear
+                            </button>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                {loading ? (
-                    <div className="flex flex-col items-center justify-center py-12">
-                        <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mb-4"></div>
-                        <p className="text-gray-500">Loading audit logs...</p>
-                    </div>
-                ) : filteredLogs.length === 0 ? (
-                    <div className="text-center py-12">
-                        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <History className="text-gray-400" size={32} />
+                <section className="rounded-3xl border border-white/10 bg-slate-950/50 p-6 shadow-[0_32px_120px_rgba(2,6,23,0.55)] backdrop-blur-xl">
+                    <div className="mb-6 flex items-start justify-between gap-4">
+                        <div>
+                            <p className="text-xs uppercase tracking-[0.32em] text-cyan-300/80">Audit stream</p>
+                            <h2 className="mt-2 text-2xl font-semibold text-white">Governance activity ledger</h2>
                         </div>
-                        <p className="text-gray-500 text-lg font-medium mb-2">No Audit Logs Found</p>
-                        <p className="text-gray-400 text-sm">
-                            {filterAction || filterRole ? "Try adjusting your filters" : "No activity recorded yet"}
-                        </p>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-right">
+                            <p className="text-sm font-medium text-white">{filteredLogs.length} entries</p>
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Visible records</p>
+                        </div>
                     </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                            <tr className="border-b-2 border-gray-200">
-                                <th className="text-left py-4 px-4 font-semibold text-gray-700">Timestamp</th>
-                                <th className="text-left py-4 px-4 font-semibold text-gray-700">Action</th>
-                                <th className="text-left py-4 px-4 font-semibold text-gray-700">Entity</th>
-                                <th className="text-left py-4 px-4 font-semibold text-gray-700">Role</th>
-                                <th className="text-left py-4 px-4 font-semibold text-gray-700">Performed By</th>
-                                <th className="text-left py-4 px-4 font-semibold text-gray-700">Employee</th>
-                                <th className="text-left py-4 px-4 font-semibold text-gray-700">Details</th>
-                                <th className="text-left py-4 px-4 font-semibold text-gray-700">Old Value</th>
-                                <th className="text-left py-4 px-4 font-semibold text-gray-700">New Value</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {filteredLogs.map((log) => {
-                                const actionConfig = getActionConfig(log.action)
-                                const roleConfig = getRoleConfig(log.role)
 
-                                return (
-                                    <tr
-                                        key={log.id}
-                                        className="border-b border-gray-100 hover:bg-gray-50 transition-colors align-top"
-                                        data-testid="auditlog-row"
-                                    >
-                                        <td className="py-4 px-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-2">
-                                                <Calendar size={14} className="text-gray-400" />
-                                                <span className="text-gray-600 font-medium">{formatTimestamp(log.timestamp)}</span>
+                    {loading ? (
+                        <div className="flex min-h-[320px] items-center justify-center">
+                            <div className="text-center">
+                                <RefreshCcw size={28} className="mx-auto animate-spin text-cyan-300" />
+                                <p className="mt-4 text-sm uppercase tracking-[0.26em] text-slate-500">Loading governance trail</p>
+                            </div>
+                        </div>
+                    ) : error ? (
+                        <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-rose-400/20 bg-rose-400/10">
+                                <AlertCircle size={24} className="text-rose-300" />
+                            </div>
+                            <h3 className="mt-5 text-xl font-medium text-white">Unable to load governance audit log</h3>
+                            <p className="mt-3 max-w-xl text-sm leading-6 text-slate-400">{error}</p>
+                        </div>
+                    ) : filteredLogs.length === 0 ? (
+                        <div className="flex min-h-[320px] flex-col items-center justify-center text-center">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03]">
+                                <FileSearch size={24} className="text-slate-500" />
+                            </div>
+                            <h3 className="mt-5 text-xl font-medium text-white">No audit records found</h3>
+                            <p className="mt-3 max-w-lg text-sm leading-6 text-slate-400">
+                                {filterAction || filterRole ? "Adjust the active filters to broaden the governance results." : "The audit endpoint has not returned any activity yet."}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {filteredLogs.map((log, index) => (
+                                <motion.article
+                                    key={log.id ?? `${log.timestamp}-${index}`}
+                                    initial={{ opacity: 0, y: 12 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.28, delay: index * 0.02 }}
+                                    className="rounded-3xl border border-white/10 bg-white/[0.03] p-5"
+                                    data-testid="auditlog-row"
+                                >
+                                    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${getActionTone(log.action)}`}>
+                                                    {log.action || "Unknown action"}
+                                                </span>
+                                                <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${getRoleTone(log.role)}`}>
+                                                    {log.role || "Unknown role"}
+                                                </span>
+                                                <span className="inline-flex items-center rounded-full border border-white/10 bg-slate-950/60 px-3 py-1 text-xs font-medium text-slate-300">
+                                                    {formatEntity(log)}
+                                                </span>
                                             </div>
-                                        </td>
 
-                                        <td className="py-4 px-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold ${actionConfig.bg} ${actionConfig.color} ${actionConfig.border} border`}>
-                                                {actionConfig.label}
-                                            </span>
-                                        </td>
-
-                                        <td className="py-4 px-4 whitespace-nowrap">
-                                            <span className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-medium text-xs">
-                                                {formatEntity(log)}
-                                            </span>
-                                        </td>
-
-                                        <td className="py-4 px-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-semibold ${roleConfig.bg} ${roleConfig.color} ${roleConfig.border} border`}>
-                                                {roleConfig.label}
-                                            </span>
-                                        </td>
-
-                                        <td className="py-4 px-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-2">
-                                                <User size={14} className="text-gray-400" />
-                                                <span className="text-gray-800 font-medium">{log.performed_by ?? "—"}</span>
+                                            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                                                <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                                                    <div className="flex items-center gap-2 text-slate-400">
+                                                        <Calendar size={14} />
+                                                        <span className="text-xs uppercase tracking-[0.24em]">Timestamp</span>
+                                                    </div>
+                                                    <p className="mt-2 text-sm text-white">{formatTimestamp(log.timestamp)}</p>
+                                                </div>
+                                                <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                                                    <div className="flex items-center gap-2 text-slate-400">
+                                                        <User size={14} />
+                                                        <span className="text-xs uppercase tracking-[0.24em]">Performed By</span>
+                                                    </div>
+                                                    <p className="mt-2 text-sm text-white">{log.performed_by ?? "Unknown user"}</p>
+                                                </div>
+                                                <div className="rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                                                    <div className="flex items-center gap-2 text-slate-400">
+                                                        <Shield size={14} />
+                                                        <span className="text-xs uppercase tracking-[0.24em]">Employee</span>
+                                                    </div>
+                                                    <p className="mt-2 text-sm text-white">{log.employee_email ?? "Not linked"}</p>
+                                                </div>
                                             </div>
-                                        </td>
 
-                                        <td className="py-4 px-4 whitespace-nowrap text-gray-600 text-xs">
-                                            {log.employee_email ?? "—"}
-                                        </td>
-
-                                        <td className="py-4 px-4 text-gray-600 max-w-xs truncate">
-                                            {log.details ?? "—"}
-                                        </td>
-
-                                        <td className="py-4 px-4">
-                                            <div className="bg-red-50 border border-red-200 rounded-lg p-2 max-w-xs text-xs text-gray-700">
-                                                {formatCellValue(log.old_value) === "—" ? (
-                                                    <span className="text-gray-400 italic">No previous value</span>
-                                                ) : (
-                                                    formatCellValue(log.old_value)
-                                                )}
+                                            <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/45 p-4">
+                                                <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Details</p>
+                                                <p className="mt-2 text-sm leading-6 text-slate-300">{log.details ?? "No additional detail provided."}</p>
                                             </div>
-                                        </td>
+                                        </div>
 
-                                        <td className="py-4 px-4">
-                                            <div className="bg-green-50 border border-green-200 rounded-lg p-2 max-w-xs text-xs text-gray-700">
-                                                {formatCellValue(log.new_value) === "—" ? (
-                                                    <span className="text-gray-400 italic">No value</span>
-                                                ) : (
-                                                    formatCellValue(log.new_value)
-                                                )}
+                                        <div className="grid min-w-0 gap-4 xl:w-[34rem]">
+                                            <div className="rounded-2xl border border-rose-400/15 bg-rose-400/[0.05] p-4">
+                                                <p className="text-xs uppercase tracking-[0.24em] text-rose-200/80">Previous Value</p>
+                                                <p className="mt-3 text-sm leading-6 text-slate-200 break-words">{formatCellValue(log.old_value)}</p>
                                             </div>
-                                        </td>
-                                    </tr>
-                                )
-                            })}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                                            <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.05] p-4">
+                                                <p className="text-xs uppercase tracking-[0.24em] text-emerald-200/80">Current Value</p>
+                                                <p className="mt-3 text-sm leading-6 text-slate-200 break-words">{formatCellValue(log.new_value)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.article>
+                            ))}
+                        </div>
+                    )}
+                </section>
             </div>
         </MainLayout>
     )

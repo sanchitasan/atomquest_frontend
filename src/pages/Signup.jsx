@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { registerUser } from "../api/authApi"
 import { getApiErrorMessage } from "../api/config"
-import { Target, Mail, Lock, AlertCircle, User, Briefcase, CheckCircle } from "lucide-react"
+import { Mail, Lock, AlertCircle, User, Briefcase, CheckCircle } from "lucide-react"
 
 function Signup() {
 
@@ -53,23 +53,18 @@ function Signup() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-6">
+        <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6">
 
             <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
-                <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" style={{ animationDelay: "1s" }}></div>
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.08),_transparent_24%),radial-gradient(circle_at_right,_rgba(168,85,247,0.08),_transparent_28%),linear-gradient(180deg,#020617_0%,#020817_48%,#020617_100%)]" />
+                <div className="absolute -top-40 -right-40 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
+                <div className="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-violet-500/10 blur-3xl" />
             </div>
 
             <div className="relative w-full max-w-md">
 
-                <div className="text-center mb-8">
-                    <div className="flex items-center justify-center gap-3 mb-4">
-                        <Target className="text-purple-400" size={48} />
-                        <span className="text-4xl font-bold text-white">AlignIQ</span>
-                    </div>
-                </div>
 
-                <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl">
+                <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-8 shadow-[0_32px_120px_rgba(2,6,23,0.55)] backdrop-blur-2xl">
 
                     <h1 className="text-3xl font-bold mb-2 text-white text-center">
                         Create Account
@@ -79,14 +74,14 @@ function Signup() {
                     </p>
 
                     {success && (
-                        <div className="mb-6 p-4 bg-green-500/20 border border-green-500/50 rounded-xl flex items-start gap-3" data-testid="signup-success-message">
+                        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4" data-testid="signup-success-message">
                             <CheckCircle className="text-green-400 flex-shrink-0 mt-0.5" size={20} />
                             <p className="text-green-200 text-sm">{success}</p>
                         </div>
                     )}
 
                     {error && (
-                        <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-xl flex items-start gap-3" data-testid="signup-error-message">
+                        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4" data-testid="signup-error-message">
                             <AlertCircle className="text-red-400 flex-shrink-0 mt-0.5" size={20} />
                             <p className="text-red-200 text-sm">{error}</p>
                         </div>
@@ -105,7 +100,7 @@ function Signup() {
                                 <input
                                     type="text"
                                     placeholder="Enter your full name"
-                                    className="w-full bg-white/5 border border-white/20 rounded-xl pl-12 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-12 pr-4 py-3 text-white placeholder-gray-500 outline-none transition-all focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
                                     required
@@ -125,7 +120,7 @@ function Signup() {
                                 <input
                                     type="email"
                                     placeholder="Enter your email"
-                                    className="w-full bg-white/5 border border-white/20 rounded-xl pl-12 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-12 pr-4 py-3 text-white placeholder-gray-500 outline-none transition-all focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
@@ -145,7 +140,7 @@ function Signup() {
                                 <input
                                     type="password"
                                     placeholder="••••••••"
-                                    className="w-full bg-white/5 border border-white/20 rounded-xl pl-12 pr-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                                    className="w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-12 pr-4 py-3 text-white placeholder-gray-500 outline-none transition-all focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
@@ -164,7 +159,7 @@ function Signup() {
                                     <Briefcase className="text-gray-400" size={20} />
                                 </div>
                                 <select
-                                    className="w-full bg-white/5 border border-white/20 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all appearance-none cursor-pointer"
+                                    className="w-full appearance-none cursor-pointer rounded-2xl border border-white/10 bg-slate-950/70 pl-12 pr-4 py-3 text-white outline-none transition-all focus:border-cyan-400/40 focus:ring-4 focus:ring-cyan-400/10"
                                     value={role}
                                     onChange={(e) => setRole(e.target.value)}
                                     required
@@ -180,7 +175,7 @@ function Signup() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-3 rounded-xl transition-all hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-500/30"
+                            className="w-full rounded-2xl border border-cyan-400/20 bg-cyan-400/12 py-3 font-semibold text-cyan-100 transition-all hover:bg-cyan-400/16 disabled:cursor-not-allowed disabled:opacity-50"
                             data-testid="signup-submit-button"
                         >
                             {loading ? (
@@ -201,7 +196,7 @@ function Signup() {
                             <button
                                 type="button"
                                 onClick={() => navigate("/login")}
-                                className="text-purple-300 hover:text-white font-medium transition-colors"
+                                className="font-medium text-cyan-300 transition-colors hover:text-white"
                                 data-testid="go-to-login-button"
                             >
                                 Sign In

@@ -1,6 +1,6 @@
 /** Ensures API base URL always ends with /api (matches FastAPI router prefix). */
 export function getApiBaseUrl() {
-    const raw = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8001/api").trim()
+    const raw = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000/api").trim()
     const base = raw.replace(/\/+$/, "")
 
     if (base.endsWith("/api")) {

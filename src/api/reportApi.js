@@ -20,26 +20,6 @@ export const getDashboardStats = async () => {
     return response.data
 }
 
-export const getCompletionDashboard = async () => {
-
-    const response = await axios.get(
-        `${BASE_URL}/completion-dashboard`,
-        getAuthHeaders()
-    )
-
-    return response.data
-}
-
-export const getGovernanceAudit = async () => {
-
-    const response = await axios.get(
-        `${BASE_URL}/governance-audit`,
-        getAuthHeaders()
-    )
-
-    return response.data
-}
-
 export const downloadAchievementReport = async () => {
 
     const response = await axios.get(

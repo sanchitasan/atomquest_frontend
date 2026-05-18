@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import MainLayout from "../layouts/MainLayout"
+import { getApiErrorMessage } from "../api/config"
 import {
     approveGoal,
     createGoal,
@@ -274,7 +275,7 @@ function Goals() {
             resetForm()
             fetchGoals()
         } catch (error) {
-            toast(error.response?.data?.detail || "Request failed", "#ef4444")
+            toast(getApiErrorMessage(error, "Goal creation failed"), "#ef4444")
         } finally {
             setSubmitting(false)
         }
@@ -308,7 +309,7 @@ function Goals() {
             closeManagerEdit()
             fetchGoals()
         } catch (error) {
-            toast(error.response?.data?.detail || "Update failed", "#ef4444")
+            toast(getApiErrorMessage(error, "Goal update failed"), "#ef4444")
         } finally {
             setSubmitting(false)
         }
@@ -344,7 +345,7 @@ function Goals() {
 
             toast("Goals submitted")
         } catch (error) {
-            toast(error.response?.data?.detail || "Submission failed", "#ef4444")
+            toast(getApiErrorMessage(error, "Submission failed"), "#ef4444")
         } finally {
             setSubmitting(false)
             submitLockRef.current = false
@@ -358,7 +359,7 @@ function Goals() {
             toast("Goal resubmitted")
             fetchGoals()
         } catch (error) {
-            toast(error.response?.data?.detail || "Resubmit failed", "#ef4444")
+            toast(getApiErrorMessage(error, "Resubmit failed"), "#ef4444")
         } finally {
             setSubmitting(false)
         }
